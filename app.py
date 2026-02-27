@@ -21,11 +21,383 @@ st.set_page_config(
 # ── Custom CSS ───────────────────────────────────────────────
 st.markdown("""
 <style>
-    .main { background-color: #0e1117; }
-    .stMetric { background-color: #1a1d27; border-radius: 8px; padding: 12px; }
-    .risk-safe    { color: #00d4aa; font-weight: bold; font-size: 1.2rem; }
-    .risk-medium  { color: #ffa500; font-weight: bold; font-size: 1.2rem; }
-    .risk-high    { color: #ff4b4b; font-weight: bold; font-size: 1.2rem; }
+@import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap');
+
+/* ── Root Variables ─────────────────────────────── */
+:root {
+    --bg-base:      #080b12;
+    --bg-surface:   #0f1420;
+    --bg-card:      #141926;
+    --bg-input:     #1a2035;
+    --border:       #232a3d;
+    --border-glow:  #00e5b050;
+    --accent:       #00e5b0;
+    --accent-dim:   #00e5b020;
+    --accent-amber: #f59e0b;
+    --accent-red:   #ef4444;
+    --accent-blue:  #3b82f6;
+    --text-primary: #e8edf5;
+    --text-muted:   #6b7a99;
+    --text-dim:     #3d4a66;
+    --green:        #00e5b0;
+    --amber:        #f59e0b;
+    --red:          #ef4444;
+    --radius:       10px;
+    --radius-lg:    16px;
+}
+
+/* ── Global Reset ───────────────────────────────── */
+html, body, [class*="css"] {
+    font-family: 'DM Sans', sans-serif !important;
+    background-color: var(--bg-base) !important;
+    color: var(--text-primary) !important;
+}
+
+.stApp {
+    background-color: var(--bg-base) !important;
+    background-image:
+        radial-gradient(ellipse 80% 40% at 50% -10%, #00e5b015 0%, transparent 60%),
+        linear-gradient(180deg, #080b12 0%, #080b12 100%);
+}
+
+/* ── Main container ─────────────────────────────── */
+.block-container {
+    max-width: 1280px !important;
+    padding: 2rem 2rem 4rem !important;
+}
+
+/* ── Header / Title ─────────────────────────────── */
+h1 {
+    font-family: 'Space Mono', monospace !important;
+    font-size: clamp(1.6rem, 4vw, 2.4rem) !important;
+    font-weight: 700 !important;
+    color: var(--text-primary) !important;
+    letter-spacing: -0.02em !important;
+    line-height: 1.2 !important;
+}
+
+h1 span.accent { color: var(--accent); }
+
+h2, h3 {
+    font-family: 'DM Sans', sans-serif !important;
+    font-weight: 600 !important;
+    color: var(--text-primary) !important;
+    letter-spacing: -0.01em !important;
+}
+
+/* ── Subheader ──────────────────────────────────── */
+.stMarkdown h3 {
+    font-size: 1rem !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.08em !important;
+    color: var(--text-muted) !important;
+    margin-bottom: 0.5rem !important;
+}
+
+/* ── Tabs ───────────────────────────────────────── */
+.stTabs [data-baseweb="tab-list"] {
+    background: var(--bg-surface) !important;
+    border: 1px solid var(--border) !important;
+    border-radius: var(--radius) !important;
+    padding: 4px !important;
+    gap: 2px !important;
+}
+
+.stTabs [data-baseweb="tab"] {
+    background: transparent !important;
+    color: var(--text-muted) !important;
+    border-radius: 7px !important;
+    padding: 8px 18px !important;
+    font-family: 'DM Sans', sans-serif !important;
+    font-weight: 500 !important;
+    font-size: 0.875rem !important;
+    transition: all 0.2s ease !important;
+    border: none !important;
+}
+
+.stTabs [aria-selected="true"] {
+    background: var(--bg-card) !important;
+    color: var(--accent) !important;
+    border: 1px solid var(--border) !important;
+    box-shadow: 0 0 12px var(--accent-dim) !important;
+}
+
+.stTabs [data-baseweb="tab-panel"] {
+    padding-top: 1.5rem !important;
+}
+
+/* ── Metrics ────────────────────────────────────── */
+[data-testid="stMetric"] {
+    background: var(--bg-card) !important;
+    border: 1px solid var(--border) !important;
+    border-radius: var(--radius) !important;
+    padding: 1rem 1.2rem !important;
+    transition: border-color 0.2s ease !important;
+}
+
+[data-testid="stMetric"]:hover {
+    border-color: var(--accent) !important;
+    box-shadow: 0 0 16px var(--accent-dim) !important;
+}
+
+[data-testid="stMetricLabel"] {
+    font-size: 0.72rem !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.07em !important;
+    color: var(--text-muted) !important;
+    font-weight: 500 !important;
+}
+
+[data-testid="stMetricValue"] {
+    font-family: 'Space Mono', monospace !important;
+    font-size: clamp(1rem, 2.5vw, 1.35rem) !important;
+    font-weight: 700 !important;
+    color: var(--text-primary) !important;
+}
+
+[data-testid="stMetricDelta"] {
+    font-size: 0.78rem !important;
+    font-weight: 500 !important;
+}
+
+/* ── Inputs ─────────────────────────────────────── */
+.stTextInput input,
+.stNumberInput input,
+.stSelectbox select,
+[data-baseweb="input"] input,
+[data-baseweb="select"] {
+    background: var(--bg-input) !important;
+    border: 1px solid var(--border) !important;
+    border-radius: var(--radius) !important;
+    color: var(--text-primary) !important;
+    font-family: 'DM Sans', sans-serif !important;
+    font-size: 0.9rem !important;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease !important;
+}
+
+.stTextInput input:focus,
+.stNumberInput input:focus {
+    border-color: var(--accent) !important;
+    box-shadow: 0 0 0 2px var(--accent-dim) !important;
+    outline: none !important;
+}
+
+/* ── Labels ─────────────────────────────────────── */
+label, .stSelectbox label, .stNumberInput label, .stTextInput label {
+    font-size: 0.78rem !important;
+    font-weight: 500 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.06em !important;
+    color: var(--text-muted) !important;
+    margin-bottom: 4px !important;
+}
+
+/* ── Buttons ────────────────────────────────────── */
+.stButton > button {
+    background: var(--bg-card) !important;
+    border: 1px solid var(--border) !important;
+    border-radius: var(--radius) !important;
+    color: var(--text-primary) !important;
+    font-family: 'DM Sans', sans-serif !important;
+    font-weight: 500 !important;
+    font-size: 0.875rem !important;
+    padding: 0.55rem 1.2rem !important;
+    transition: all 0.2s ease !important;
+    letter-spacing: 0.01em !important;
+}
+
+.stButton > button:hover {
+    border-color: var(--accent) !important;
+    color: var(--accent) !important;
+    box-shadow: 0 0 16px var(--accent-dim) !important;
+    transform: translateY(-1px) !important;
+}
+
+/* Primary button */
+.stButton > button[kind="primary"] {
+    background: var(--accent) !important;
+    border-color: var(--accent) !important;
+    color: #080b12 !important;
+    font-weight: 700 !important;
+    letter-spacing: 0.02em !important;
+}
+
+.stButton > button[kind="primary"]:hover {
+    background: #00ffcc !important;
+    color: #080b12 !important;
+    box-shadow: 0 0 24px #00e5b055 !important;
+    transform: translateY(-1px) !important;
+}
+
+/* ── Radio ──────────────────────────────────────── */
+.stRadio [data-baseweb="radio"] {
+    background: var(--bg-input) !important;
+    border: 1px solid var(--border) !important;
+    border-radius: var(--radius) !important;
+    padding: 6px 14px !important;
+    margin-right: 6px !important;
+    transition: all 0.2s ease !important;
+}
+
+/* ── Alerts ─────────────────────────────────────── */
+.stSuccess, [data-baseweb="notification"][kind="positive"] {
+    background: #00e5b012 !important;
+    border: 1px solid #00e5b040 !important;
+    border-radius: var(--radius) !important;
+    color: var(--green) !important;
+}
+
+.stWarning, [data-baseweb="notification"][kind="warning"] {
+    background: #f59e0b12 !important;
+    border: 1px solid #f59e0b40 !important;
+    border-radius: var(--radius) !important;
+    color: var(--amber) !important;
+}
+
+.stError, [data-baseweb="notification"][kind="negative"] {
+    background: #ef444412 !important;
+    border: 1px solid #ef444440 !important;
+    border-radius: var(--radius) !important;
+    color: var(--red) !important;
+}
+
+.stInfo, [data-baseweb="notification"][kind="info"] {
+    background: #3b82f612 !important;
+    border: 1px solid #3b82f640 !important;
+    border-radius: var(--radius) !important;
+    color: var(--accent-blue) !important;
+}
+
+/* ── Dataframe / Table ──────────────────────────── */
+.stDataFrame, [data-testid="stDataFrame"] {
+    border: 1px solid var(--border) !important;
+    border-radius: var(--radius-lg) !important;
+    overflow: hidden !important;
+}
+
+[data-testid="stDataFrame"] table {
+    background: var(--bg-card) !important;
+}
+
+[data-testid="stDataFrame"] th {
+    background: var(--bg-surface) !important;
+    color: var(--text-muted) !important;
+    font-size: 0.72rem !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.07em !important;
+    font-weight: 600 !important;
+    border-bottom: 1px solid var(--border) !important;
+    padding: 10px 14px !important;
+}
+
+[data-testid="stDataFrame"] td {
+    font-family: 'Space Mono', monospace !important;
+    font-size: 0.8rem !important;
+    color: var(--text-primary) !important;
+    border-bottom: 1px solid var(--border) !important;
+    padding: 8px 14px !important;
+}
+
+[data-testid="stDataFrame"] tr:hover td {
+    background: var(--bg-input) !important;
+}
+
+/* ── Divider ────────────────────────────────────── */
+hr {
+    border: none !important;
+    border-top: 1px solid var(--border) !important;
+    margin: 1.5rem 0 !important;
+}
+
+/* ── Caption / small text ───────────────────────── */
+.stCaption, small, caption {
+    color: var(--text-muted) !important;
+    font-size: 0.78rem !important;
+}
+
+/* ── Selectbox dropdown ─────────────────────────── */
+[data-baseweb="popover"] {
+    background: var(--bg-card) !important;
+    border: 1px solid var(--border) !important;
+    border-radius: var(--radius) !important;
+}
+
+[data-baseweb="menu"] {
+    background: var(--bg-card) !important;
+}
+
+[data-baseweb="menu"] li:hover {
+    background: var(--bg-input) !important;
+}
+
+/* ── Spinner ────────────────────────────────────── */
+.stSpinner > div {
+    border-top-color: var(--accent) !important;
+}
+
+/* ── Scrollbar ──────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--bg-base); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--accent); }
+
+/* ── Responsive: mobile ─────────────────────────── */
+@media (max-width: 768px) {
+    .block-container { padding: 1rem 1rem 3rem !important; }
+    h1 { font-size: 1.5rem !important; }
+    [data-testid="stMetricValue"] { font-size: 1rem !important; }
+    .stTabs [data-baseweb="tab"] { padding: 6px 10px !important; font-size: 0.78rem !important; }
+}
+
+/* ── Header badge pill ──────────────────────────── */
+.header-badge {
+    display: inline-block;
+    background: var(--accent-dim);
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    font-family: 'Space Mono', monospace;
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    padding: 3px 10px;
+    border-radius: 20px;
+    margin-left: 10px;
+    vertical-align: middle;
+}
+
+/* ── Stat card for custom HTML blocks ───────────── */
+.stat-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1rem 1.2rem;
+    transition: border-color 0.2s ease;
+}
+
+.stat-card:hover {
+    border-color: var(--accent);
+    box-shadow: 0 0 16px var(--accent-dim);
+}
+
+.stat-label {
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-muted);
+    font-weight: 600;
+    margin-bottom: 4px;
+}
+
+.stat-value {
+    font-family: 'Space Mono', monospace;
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.stat-value.green { color: var(--green); }
+.stat-value.red   { color: var(--red); }
+.stat-value.amber { color: var(--amber); }
 </style>
 """, unsafe_allow_html=True)
 
@@ -77,103 +449,98 @@ def fetch_markets():
     return {}
 
 
+# ── Global Plotly Theme ───────────────────────────────────────
+PLOT_THEME = dict(
+    paper_bgcolor="#141926",
+    plot_bgcolor="#0f1420",
+    font=dict(family="DM Sans, sans-serif", color="#6b7a99", size=12),
+    margin=dict(t=48, b=24, l=16, r=16),
+    xaxis=dict(gridcolor="#232a3d", linecolor="#232a3d", tickfont=dict(size=11, color="#6b7a99")),
+    yaxis=dict(gridcolor="#232a3d", linecolor="#232a3d", tickfont=dict(size=11, color="#6b7a99")),
+)
+
+def apply_theme(fig, height=320, title="", extra=None):
+    layout = {**PLOT_THEME, "height": height}
+    if title:
+        layout["title"] = dict(text=title, font=dict(size=13, color="#e8edf5", family="DM Sans, sans-serif"), x=0, xanchor="left")
+    if extra:
+        layout.update(extra)
+    fig.update_layout(**layout)
+    return fig
+
+
 # ── Plotly: Risk Gauge ────────────────────────────────────────
 def make_risk_gauge(risk_pct):
-    color = "#00d4aa" if risk_pct < 5 else ("#ffa500" if risk_pct <= 15 else "#ff4b4b")
+    color = "#00e5b0" if risk_pct < 5 else ("#f59e0b" if risk_pct <= 15 else "#ef4444")
     fig = go.Figure(go.Indicator(
         mode="gauge+number+delta",
         value=risk_pct,
-        number={"suffix": "%", "font": {"size": 36, "color": color}},
-        delta={"reference": 5, "increasing": {"color": "#ff4b4b"}, "decreasing": {"color": "#00d4aa"}},
+        number={"suffix": "%", "font": {"size": 38, "color": color, "family": "Space Mono"}},
+        delta={"reference": 5, "increasing": {"color": "#ef4444"}, "decreasing": {"color": "#00e5b0"}},
         gauge={
-            "axis": {"range": [0, 30], "tickwidth": 1, "tickcolor": "#555"},
-            "bar": {"color": color},
-            "bgcolor": "#1a1d27",
+            "axis": {"range": [0, 30], "tickwidth": 1, "tickcolor": "#3d4a66", "tickfont": {"color": "#6b7a99"}},
+            "bar": {"color": color, "thickness": 0.6},
+            "bgcolor": "#0f1420",
             "borderwidth": 0,
             "steps": [
-                {"range": [0,  5],  "color": "#0d2b22"},
-                {"range": [5,  15], "color": "#2b2200"},
-                {"range": [15, 30], "color": "#2b0d0d"},
+                {"range": [0,  5],  "color": "#00e5b010"},
+                {"range": [5,  15], "color": "#f59e0b10"},
+                {"range": [15, 30], "color": "#ef444410"},
             ],
-            "threshold": {
-                "line": {"color": "white", "width": 2},
-                "thickness": 0.75,
-                "value": risk_pct
-            }
+            "threshold": {"line": {"color": color, "width": 2}, "thickness": 0.75, "value": risk_pct}
         },
-        title={"text": "Risk % of Balance", "font": {"size": 16, "color": "#aaa"}}
+        title={"text": "Risk % of Balance", "font": {"size": 13, "color": "#6b7a99", "family": "DM Sans"}}
     ))
-    fig.update_layout(
-        paper_bgcolor="#1a1d27",
-        font_color="white",
-        height=260,
-        margin=dict(t=50, b=10, l=30, r=30)
-    )
+    apply_theme(fig, height=260)
+    fig.update_layout(margin=dict(t=50, b=10, l=30, r=30))
     return fig
 
 
 # ── Plotly: Price Level Chart ─────────────────────────────────
 def make_price_levels(entry, sl, tp, liq, symbol, is_long):
-    levels = {
-        "Take Profit": tp,
-        "Entry":       entry,
-        "Stop Loss":   sl,
-        "Liquidation": liq,
-    }
-    colors = {
-        "Take Profit": "#00d4aa",
-        "Entry":       "#4da6ff",
-        "Stop Loss":   "#ffa500",
-        "Liquidation": "#ff4b4b",
-    }
+    levels = {"Take Profit": tp, "Entry": entry, "Stop Loss": sl, "Liquidation": liq}
+    colors = {"Take Profit": "#00e5b0", "Entry": "#3b82f6", "Stop Loss": "#f59e0b", "Liquidation": "#ef4444"}
     sorted_levels = sorted(levels.items(), key=lambda x: x[1], reverse=True)
-    labels  = [l[0] for l in sorted_levels]
-    prices  = [l[1] for l in sorted_levels]
-    clrs    = [colors[l[0]] for l in sorted_levels]
+    labels = [l[0] for l in sorted_levels]
+    prices = [l[1] for l in sorted_levels]
+    clrs   = [colors[l[0]] for l in sorted_levels]
 
     fig = go.Figure()
 
-    # Shaded zones
     if is_long:
-        fig.add_hrect(y0=entry, y1=tp,  fillcolor="#00d4aa", opacity=0.08, line_width=0)
-        fig.add_hrect(y0=liq,   y1=entry, fillcolor="#ff4b4b", opacity=0.08, line_width=0)
+        fig.add_hrect(y0=entry, y1=tp,  fillcolor="#00e5b0", opacity=0.06, line_width=0)
+        fig.add_hrect(y0=liq,   y1=entry, fillcolor="#ef4444", opacity=0.06, line_width=0)
 
     for label, price, clr in zip(labels, prices, clrs):
         fig.add_hline(
-            y=price, line_dash="dash", line_color=clr, line_width=1.5,
+            y=price, line_dash="dash", line_color=clr, line_width=1.2,
             annotation_text=f"  {label}: ${price:,.2f}",
             annotation_position="right",
             annotation_font_color=clr,
-            annotation_font_size=12,
+            annotation_font_size=11,
         )
 
     fig.add_trace(go.Scatter(
-        x=["Level"] * len(prices),
-        y=prices,
-        mode="markers",
-        marker=dict(size=12, color=clrs, symbol="diamond"),
+        x=[""] * len(prices), y=prices, mode="markers",
+        marker=dict(size=10, color=clrs, symbol="diamond"),
         text=labels,
-        hovertemplate="<b>%{text}</b><br>$%{y:,.2f}<extra></extra>"
+        hovertemplate="<b>%{text}</b><br>$%{y:,.4f}<extra></extra>"
     ))
 
-    fig.update_layout(
-        title=f"{symbol} — Key Price Levels",
-        paper_bgcolor="#1a1d27",
-        plot_bgcolor="#0e1117",
-        font_color="white",
-        height=320,
-        margin=dict(t=50, b=20, l=20, r=120),
-        xaxis=dict(showticklabels=False, showgrid=False),
-        yaxis=dict(gridcolor="#2a2d3a", title="Price ($)"),
-        showlegend=False,
-    )
+    apply_theme(fig, height=320, title=f"{symbol} — Key Price Levels",
+                extra=dict(
+                    xaxis=dict(showticklabels=False, showgrid=False),
+                    yaxis=dict(gridcolor="#232a3d", title="Price ($)"),
+                    showlegend=False,
+                    margin=dict(t=48, b=20, l=16, r=120)
+                ))
     return fig
 
 
 # ── Plotly: Adverse Move Waterfall ────────────────────────────
 def make_adverse_waterfall(balance, position_size, entry_price, is_long, leverage):
-    moves   = list(range(1, 11))
-    losses  = [(pct / 100) * position_size for pct in moves]
+    moves    = list(range(1, 11))
+    losses   = [(pct / 100) * position_size for pct in moves]
     balances = [balance - l for l in losses]
     liq_pct  = 100 / leverage
 
@@ -183,7 +550,7 @@ def make_adverse_waterfall(balance, position_size, entry_price, is_long, leverag
         x=[f"-{p}%" for p in moves],
         y=losses,
         name="Estimated Loss ($)",
-        marker_color=["#ff4b4b" if b > 0 else "#800000" for b in balances],
+        marker_color=["#ef4444" if b > 0 else "#7f1d1d" for b in balances],
         hovertemplate="Move: %{x}<br>Loss: $%{y:,.2f}<extra></extra>"
     ), secondary_y=False)
 
@@ -192,160 +559,119 @@ def make_adverse_waterfall(balance, position_size, entry_price, is_long, leverag
         y=balances,
         name="Remaining Balance ($)",
         mode="lines+markers",
-        line=dict(color="#4da6ff", width=2),
-        marker=dict(size=6),
+        line=dict(color="#3b82f6", width=2),
+        marker=dict(size=6, color="#3b82f6"),
         hovertemplate="Move: %{x}<br>Balance: $%{y:,.2f}<extra></extra>"
     ), secondary_y=True)
 
-    # Liquidation line
     if liq_pct <= 10:
         fig.add_vline(
-            x=f"-{int(liq_pct)}%",
-            line_dash="dot",
-            line_color="#ff4b4b",
-            annotation_text="⚡ Liquidation",
-            annotation_font_color="#ff4b4b"
+            x=f"-{int(liq_pct)}%", line_dash="dot", line_color="#ef4444",
+            annotation_text="⚡ Liq.", annotation_font_color="#ef4444", annotation_font_size=11
         )
 
-    fig.update_layout(
-        title="Adverse Move Simulation (1%–10%)",
-        paper_bgcolor="#1a1d27",
-        plot_bgcolor="#0e1117",
-        font_color="white",
-        height=340,
-        margin=dict(t=50, b=20, l=20, r=20),
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-        xaxis=dict(gridcolor="#2a2d3a"),
-        yaxis=dict(gridcolor="#2a2d3a", title="Loss ($)"),
-        yaxis2=dict(title="Balance ($)", overlaying="y", side="right"),
-        hovermode="x unified"
-    )
+    apply_theme(fig, height=320, title="Adverse Move Simulation (1%–10%)",
+                extra=dict(
+                    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1,
+                                font=dict(size=11, color="#6b7a99")),
+                    yaxis=dict(gridcolor="#232a3d", title="Loss ($)"),
+                    yaxis2=dict(title="Balance ($)", overlaying="y", side="right", gridcolor="#232a3d"),
+                    hovermode="x unified"
+                ))
     return fig
 
 
 # ── Plotly: Analytics Charts ──────────────────────────────────
 def make_rr_chart(df):
-    colors = df["Classification"].map({
-        "SAFE": "#00d4aa", "MEDIUM RISK": "#ffa500", "HIGH RISK": "#ff4b4b"
-    }).fillna("#aaa")
-
     fig = go.Figure()
     fig.add_trace(go.Bar(
-        x=df["Trade #"],
-        y=df["Risk Amount"],
-        name="Risk ($)",
-        marker_color="#ff6b6b",
+        x=df["Trade #"], y=df["Risk Amount"], name="Risk ($)",
+        marker_color="#ef4444",
         hovertemplate="<b>%{x}</b><br>Risk: $%{y:,.2f}<extra></extra>"
     ))
     fig.add_trace(go.Bar(
-        x=df["Trade #"],
-        y=df["Reward Amount"],
-        name="Reward ($)",
-        marker_color="#00d4aa",
+        x=df["Trade #"], y=df["Reward Amount"], name="Reward ($)",
+        marker_color="#00e5b0",
         hovertemplate="<b>%{x}</b><br>Reward: $%{y:,.2f}<extra></extra>"
     ))
-    fig.update_layout(
-        title="Risk vs Reward per Trade",
-        barmode="group",
-        paper_bgcolor="#1a1d27",
-        plot_bgcolor="#0e1117",
-        font_color="white",
-        height=320,
-        margin=dict(t=50, b=20, l=20, r=20),
-        xaxis=dict(gridcolor="#2a2d3a"),
-        yaxis=dict(gridcolor="#2a2d3a", title="Amount ($)"),
-        legend=dict(orientation="h", yanchor="bottom", y=1.02)
-    )
+    apply_theme(fig, height=300, title="Risk vs Reward per Trade",
+                extra=dict(barmode="group",
+                           legend=dict(orientation="h", y=1.02, x=1, xanchor="right", font=dict(size=11)),
+                           yaxis=dict(gridcolor="#232a3d", title="Amount ($)")))
     return fig
 
 
 def make_risk_pct_chart(df):
-    colors = df["Classification"].map({
-        "SAFE": "#00d4aa", "MEDIUM RISK": "#ffa500", "HIGH RISK": "#ff4b4b"
-    }).fillna("#aaa")
-
+    colors = df["Classification"].map({"SAFE": "#00e5b0", "MEDIUM RISK": "#f59e0b", "HIGH RISK": "#ef4444"}).fillna("#6b7a99")
+    max_y  = max(df["Risk %"].max() + 5, 20)
     fig = go.Figure()
-    fig.add_hrect(y0=0, y1=5, fillcolor="#00d4aa", opacity=0.05, line_width=0, annotation_text="Safe zone", annotation_position="right")
-    fig.add_hrect(y0=5, y1=15, fillcolor="#ffa500", opacity=0.05, line_width=0, annotation_text="Medium zone", annotation_position="right")
-    fig.add_hrect(y0=15, y1=max(df["Risk %"].max() + 5, 20), fillcolor="#ff4b4b", opacity=0.05, line_width=0, annotation_text="High risk zone", annotation_position="right")
-    fig.add_hline(y=5,  line_dash="dot", line_color="#00d4aa", line_width=1)
-    fig.add_hline(y=15, line_dash="dot", line_color="#ff4b4b", line_width=1)
-
+    fig.add_hrect(y0=0,  y1=5,     fillcolor="#00e5b0", opacity=0.05, line_width=0)
+    fig.add_hrect(y0=5,  y1=15,    fillcolor="#f59e0b", opacity=0.05, line_width=0)
+    fig.add_hrect(y0=15, y1=max_y, fillcolor="#ef4444", opacity=0.05, line_width=0)
+    fig.add_hline(y=5,  line_dash="dot", line_color="#00e5b0", line_width=1,
+                  annotation_text="5% safe", annotation_font_color="#00e5b0", annotation_font_size=10)
+    fig.add_hline(y=15, line_dash="dot", line_color="#ef4444", line_width=1,
+                  annotation_text="15% high", annotation_font_color="#ef4444", annotation_font_size=10)
     fig.add_trace(go.Scatter(
-        x=df["Trade #"],
-        y=df["Risk %"],
-        mode="lines+markers",
-        line=dict(width=2, color="#4da6ff"),
-        marker=dict(size=10, color=colors, line=dict(width=2, color="white")),
+        x=df["Trade #"], y=df["Risk %"], mode="lines+markers",
+        line=dict(width=2, color="#3b82f6"),
+        marker=dict(size=9, color=colors, line=dict(width=2, color="#141926")),
         hovertemplate="<b>%{x}</b><br>Risk: %{y:.2f}%<extra></extra>"
     ))
-    fig.update_layout(
-        title="Risk % per Trade (with Safe/Medium/High zones)",
-        paper_bgcolor="#1a1d27",
-        plot_bgcolor="#0e1117",
-        font_color="white",
-        height=320,
-        margin=dict(t=50, b=20, l=20, r=80),
-        xaxis=dict(gridcolor="#2a2d3a"),
-        yaxis=dict(gridcolor="#2a2d3a", title="Risk %")
-    )
+    apply_theme(fig, height=300, title="Risk % per Trade",
+                extra=dict(yaxis=dict(gridcolor="#232a3d", title="Risk %", range=[0, max_y]),
+                           margin=dict(t=48, b=24, l=16, r=80)))
     return fig
 
 
 def make_rr_ratio_chart(df):
+    bar_colors = ["#00e5b0" if r >= 2 else "#f59e0b" if r >= 1 else "#ef4444" for r in df["RR Ratio"]]
     fig = go.Figure()
-    fig.add_hline(y=2, line_dash="dot", line_color="#00d4aa", line_width=1,
-                  annotation_text="Good RR (1:2)", annotation_position="right",
-                  annotation_font_color="#00d4aa")
-
+    fig.add_hline(y=2, line_dash="dot", line_color="#00e5b0", line_width=1,
+                  annotation_text="1:2 target", annotation_position="right",
+                  annotation_font_color="#00e5b0", annotation_font_size=10)
     fig.add_trace(go.Bar(
-        x=df["Trade #"],
-        y=df["RR Ratio"],
-        marker_color=["#00d4aa" if r >= 2 else "#ffa500" if r >= 1 else "#ff4b4b" for r in df["RR Ratio"]],
-        hovertemplate="<b>%{x}</b><br>RR Ratio: 1:%{y:.2f}<extra></extra>"
+        x=df["Trade #"], y=df["RR Ratio"],
+        marker_color=bar_colors,
+        hovertemplate="<b>%{x}</b><br>RR: 1:%{y:.2f}<extra></extra>"
     ))
-    fig.update_layout(
-        title="Risk/Reward Ratio per Trade",
-        paper_bgcolor="#1a1d27",
-        plot_bgcolor="#0e1117",
-        font_color="white",
-        height=320,
-        margin=dict(t=50, b=20, l=20, r=80),
-        xaxis=dict(gridcolor="#2a2d3a"),
-        yaxis=dict(gridcolor="#2a2d3a", title="RR Ratio"),
-        showlegend=False
-    )
+    apply_theme(fig, height=300, title="Risk/Reward Ratio per Trade",
+                extra=dict(showlegend=False,
+                           yaxis=dict(gridcolor="#232a3d", title="RR Ratio"),
+                           margin=dict(t=48, b=24, l=16, r=80)))
     return fig
 
 
 def make_classification_pie(df):
-    counts = df["Classification"].value_counts()
-    color_map = {"SAFE": "#00d4aa", "MEDIUM RISK": "#ffa500", "HIGH RISK": "#ff4b4b"}
+    counts    = df["Classification"].value_counts()
+    color_map = {"SAFE": "#00e5b0", "MEDIUM RISK": "#f59e0b", "HIGH RISK": "#ef4444"}
     fig = go.Figure(go.Pie(
-        labels=counts.index,
-        values=counts.values,
-        marker_colors=[color_map.get(c, "#aaa") for c in counts.index],
-        hole=0.5,
+        labels=counts.index, values=counts.values,
+        marker_colors=[color_map.get(c, "#6b7a99") for c in counts.index],
+        hole=0.55,
         textinfo="label+percent",
+        textfont=dict(size=11, family="DM Sans"),
         hovertemplate="<b>%{label}</b><br>%{value} trades (%{percent})<extra></extra>"
     ))
-    fig.update_layout(
-        title="Trade Risk Distribution",
-        paper_bgcolor="#1a1d27",
-        font_color="white",
-        height=320,
-        margin=dict(t=50, b=20, l=20, r=20),
-        showlegend=False
-    )
+    apply_theme(fig, height=300, title="Trade Risk Distribution",
+                extra=dict(showlegend=False, margin=dict(t=48, b=10, l=10, r=10)))
     return fig
 
 
 # ═══════════════════════════════════════════════════════════
 #  HEADER
 # ═══════════════════════════════════════════════════════════
-st.title("⚡ Perps Risk Guard")
-st.caption("Know your risk before you enter the trade. Powered by Pacifica API.")
-st.divider()
+st.markdown("""
+<div style="display:flex; align-items:center; gap:12px; margin-bottom:0.25rem;">
+    <span style="font-family:'Space Mono',monospace; font-size:clamp(1.5rem,4vw,2.2rem); font-weight:700; color:#e8edf5; letter-spacing:-0.02em;">
+        ⚡ Perps Risk Guard
+    </span>
+    <span class="header-badge">PACIFICA HACKATHON</span>
+</div>
+<p style="color:#6b7a99; font-size:0.875rem; margin-top:0; margin-bottom:1.5rem; font-family:'DM Sans',sans-serif;">
+    Real-time risk analytics for perpetual traders — powered by Pacifica API
+</p>
+""", unsafe_allow_html=True)
 
 tab1, tab2, tab3, tab4 = st.tabs(["🔍  Calculator", "📊  Analytics", "💼  Portfolio Risk", "🌐  Live Market"])
 
@@ -932,85 +1258,62 @@ with tab3:
             fig_pie = go.Figure(go.Pie(
                 labels=exp_by_sym["Symbol"],
                 values=exp_by_sym["Size ($)"],
-                hole=0.45,
+                hole=0.5,
                 textinfo="label+percent",
+                textfont=dict(size=11, family="DM Sans"),
                 hovertemplate="<b>%{label}</b><br>$%{value:,.2f} (%{percent})<extra></extra>"
             ))
-            fig_pie.update_layout(
-                title="Exposure by Symbol",
-                paper_bgcolor="#1a1d27", font_color="white",
-                height=300, margin=dict(t=50, b=10, l=10, r=10), showlegend=False
-            )
+            apply_theme(fig_pie, height=280, title="Exposure by Symbol",
+                        extra=dict(showlegend=False, margin=dict(t=48, b=10, l=10, r=10)))
             st.plotly_chart(fig_pie, use_container_width=True)
 
         with ch_b:
             # Long vs Short exposure
             dir_exp = pdf.groupby("Direction")["Size ($)"].sum().reset_index()
-            dir_colors = ["#00d4aa" if d == "Long" else "#ff4b4b" for d in dir_exp["Direction"]]
+            dir_colors = ["#00e5b0" if d == "Long" else "#ef4444" for d in dir_exp["Direction"]]
             fig_dir = go.Figure(go.Bar(
-                x=dir_exp["Direction"],
-                y=dir_exp["Size ($)"],
+                x=dir_exp["Direction"], y=dir_exp["Size ($)"],
                 marker_color=dir_colors,
                 hovertemplate="<b>%{x}</b><br>$%{y:,.2f}<extra></extra>"
             ))
-            fig_dir.update_layout(
-                title="Long vs Short Exposure",
-                paper_bgcolor="#1a1d27", plot_bgcolor="#0e1117", font_color="white",
-                height=300, margin=dict(t=50, b=10, l=10, r=10),
-                xaxis=dict(gridcolor="#2a2d3a"),
-                yaxis=dict(gridcolor="#2a2d3a", title="Size ($)"),
-                showlegend=False
-            )
+            apply_theme(fig_dir, height=280, title="Long vs Short Exposure",
+                        extra=dict(showlegend=False,
+                                   yaxis=dict(gridcolor="#232a3d", title="Size ($)")))
             st.plotly_chart(fig_dir, use_container_width=True)
 
         # Risk per position bar chart
         fig_risk = go.Figure()
         fig_risk.add_trace(go.Bar(
-            x=pdf["Pos #"] + " " + pdf["Symbol"],
-            y=pdf["Risk ($)"],
-            name="Risk ($)",
-            marker_color="#ff6b6b",
+            x=pdf["Pos #"] + " " + pdf["Symbol"], y=pdf["Risk ($)"], name="Risk ($)",
+            marker_color="#ef4444",
             hovertemplate="<b>%{x}</b><br>Risk: $%{y:,.2f}<extra></extra>"
         ))
         fig_risk.add_trace(go.Bar(
-            x=pdf["Pos #"] + " " + pdf["Symbol"],
-            y=pdf["Reward ($)"],
-            name="Reward ($)",
-            marker_color="#00d4aa",
+            x=pdf["Pos #"] + " " + pdf["Symbol"], y=pdf["Reward ($)"], name="Reward ($)",
+            marker_color="#00e5b0",
             hovertemplate="<b>%{x}</b><br>Reward: $%{y:,.2f}<extra></extra>"
         ))
-        fig_risk.update_layout(
-            title="Risk vs Reward per Position",
-            barmode="group",
-            paper_bgcolor="#1a1d27", plot_bgcolor="#0e1117", font_color="white",
-            height=320, margin=dict(t=50, b=20, l=20, r=20),
-            xaxis=dict(gridcolor="#2a2d3a"),
-            yaxis=dict(gridcolor="#2a2d3a", title="Amount ($)"),
-            legend=dict(orientation="h", yanchor="bottom", y=1.02)
-        )
+        apply_theme(fig_risk, height=300, title="Risk vs Reward per Position",
+                    extra=dict(barmode="group",
+                               legend=dict(orientation="h", y=1.02, x=1, xanchor="right", font=dict(size=11)),
+                               yaxis=dict(gridcolor="#232a3d", title="Amount ($)")))
         st.plotly_chart(fig_risk, use_container_width=True)
 
         # Leverage per position
-        lev_colors = ["#ff4b4b" if l >= 20 else "#ffa500" if l >= 10 else "#00d4aa"
-                      for l in pdf["Leverage"]]
+        lev_colors = ["#ef4444" if l >= 20 else "#f59e0b" if l >= 10 else "#00e5b0" for l in pdf["Leverage"]]
         fig_lev = go.Figure(go.Bar(
-            x=pdf["Pos #"] + " " + pdf["Symbol"],
-            y=pdf["Leverage"],
+            x=pdf["Pos #"] + " " + pdf["Symbol"], y=pdf["Leverage"],
             marker_color=lev_colors,
             hovertemplate="<b>%{x}</b><br>Leverage: %{y}x<extra></extra>"
         ))
-        fig_lev.add_hline(y=10, line_dash="dot", line_color="#ffa500",
-                          annotation_text="10x", annotation_font_color="#ffa500")
-        fig_lev.add_hline(y=20, line_dash="dot", line_color="#ff4b4b",
-                          annotation_text="20x (high risk)", annotation_font_color="#ff4b4b")
-        fig_lev.update_layout(
-            title="Leverage per Position",
-            paper_bgcolor="#1a1d27", plot_bgcolor="#0e1117", font_color="white",
-            height=300, margin=dict(t=50, b=20, l=20, r=80),
-            xaxis=dict(gridcolor="#2a2d3a"),
-            yaxis=dict(gridcolor="#2a2d3a", title="Leverage (x)"),
-            showlegend=False
-        )
+        fig_lev.add_hline(y=10, line_dash="dot", line_color="#f59e0b",
+                          annotation_text="10x", annotation_font_color="#f59e0b", annotation_font_size=10)
+        fig_lev.add_hline(y=20, line_dash="dot", line_color="#ef4444",
+                          annotation_text="20x high risk", annotation_font_color="#ef4444", annotation_font_size=10)
+        apply_theme(fig_lev, height=280, title="Leverage per Position",
+                    extra=dict(showlegend=False,
+                               yaxis=dict(gridcolor="#232a3d", title="Leverage (x)"),
+                               margin=dict(t=48, b=24, l=16, r=90)))
         st.plotly_chart(fig_lev, use_container_width=True)
 
         st.divider()
@@ -1097,25 +1400,16 @@ with tab4:
 
         if funding_data:
             fdf    = pd.DataFrame(funding_data).sort_values("Funding Rate (%)")
-            colors = ["#ff4b4b" if f > 0 else "#00d4aa" for f in fdf["Funding Rate (%)"]]
+            colors = ["#ef4444" if f > 0 else "#00e5b0" for f in fdf["Funding Rate (%)"]]
 
             fig = go.Figure(go.Bar(
-                x=fdf["Symbol"],
-                y=fdf["Funding Rate (%)"],
+                x=fdf["Symbol"], y=fdf["Funding Rate (%)"],
                 marker_color=colors,
                 hovertemplate="<b>%{x}</b><br>Funding: %{y:+.4f}%<extra></extra>"
             ))
-            fig.add_hline(y=0, line_color="white", line_width=0.5)
-            fig.update_layout(
-                title="Funding Rates — Positive (Longs pay) | Negative (Shorts pay)",
-                paper_bgcolor="#1a1d27",
-                plot_bgcolor="#0e1117",
-                font_color="white",
-                height=350,
-                margin=dict(t=60, b=20, l=20, r=20),
-                xaxis=dict(gridcolor="#2a2d3a"),
-                yaxis=dict(gridcolor="#2a2d3a", title="Funding Rate (%)")
-            )
+            fig.add_hline(y=0, line_color="#6b7a99", line_width=0.5)
+            apply_theme(fig, height=340, title="Funding Rates — 🔴 Positive (longs pay)  |  🟢 Negative (shorts pay)",
+                        extra=dict(yaxis=dict(gridcolor="#232a3d", title="Funding Rate (%)")))
             st.plotly_chart(fig, use_container_width=True)
 
         st.divider()
