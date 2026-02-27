@@ -652,14 +652,144 @@ with tab2:
 with tab3:
 
     st.subheader("💼 Portfolio Risk Aggregator")
-    st.caption("Add multiple open positions and see your total exposure in one view.")
+    st.caption("Connect your Pacifica wallet to auto-load real positions, or add manually.")
 
     # ── Fetch prices for live defaults ──────────────────────
     port_prices  = fetch_prices()
     port_markets = fetch_markets()
     port_symbols = sorted(port_prices.keys()) if port_prices else ["BTC", "ETH", "SOL"]
 
-    st.markdown("#### ➕ Add Position")
+    # ── Wallet Integration ───────────────────────────────────
+    st.markdown("#### 🔗 Load Real Positions from Wallet")
+
+    w_col1, w_col2 = st.columns([4, 1])
+    with w_col1:
+        wallet_address = st.text_input(
+            "Pacifica Wallet Address",
+            placeholder="Paste your wallet address (e.g. 42trU9A5...)",
+            help="Read-only — your positions and balance are fetched publicly. No signature or login required."
+        )
+    with w_col2:
+        st.write("")
+        st.write("")
+        load_wallet = st.button("🔍 Load Wallet", use_container_width=True, type="primary")
+
+    if load_wallet and wallet_address.strip():
+        wallet = wallet_address.strip()
+        with st.spinner("Fetching your Pacifica positions..."):
+
+            # ── Fetch account info ──────────────────────────
+            try:
+                acc_resp = requests.get(
+                    f"{PACIFICA_BASE_URL}/account",
+                    params={"account": wallet}, timeout=8
+                )
+                acc_data = acc_resp.json()
+                acc_info = acc_data.get("data", [{}])[0] if acc_data.get("success") else {}
+            except Exception:
+                acc_info = {}
+
+            # ── Fetch positions ─────────────────────────────
+            try:
+                pos_resp = requests.get(
+                    f"{PACIFICA_BASE_URL}/positions",
+                    params={"account": wallet}, timeout=8
+                )
+                pos_data = pos_resp.json()
+                positions = pos_data.get("data", []) if pos_data.get("success") else []
+            except Exception:
+                positions = []
+
+        if not acc_info and not positions:
+            st.error("❌ Could not fetch wallet data. Check your address and try again.")
+        else:
+            # Show account summary
+            if acc_info:
+                st.success(f"✅ Wallet loaded: `{wallet[:6]}...{wallet[-4:]}`")
+                wa1, wa2, wa3, wa4 = st.columns(4)
+                wa1.metric("Balance",          f"${float(acc_info.get('balance', 0)):,.2f}")
+                wa2.metric("Account Equity",   f"${float(acc_info.get('account_equity', 0)):,.2f}")
+                wa3.metric("Margin Used",      f"${float(acc_info.get('total_margin_used', 0)):,.2f}")
+                wa4.metric("Available",        f"${float(acc_info.get('available_to_spend', 0)):,.2f}")
+
+            if not positions:
+                st.info("📭 No open positions found for this wallet.")
+            else:
+                st.markdown(f"**{len(positions)} open position(s) found — importing into portfolio...**")
+
+                # Convert API positions to portfolio format
+                wallet_balance = float(acc_info.get("balance", 10000)) if acc_info else 10000
+                imported = 0
+
+                for pos in positions:
+                    symbol    = pos.get("symbol", "")
+                    side      = pos.get("side", "bid")   # "bid" = long, "ask" = short
+                    is_long   = side in ("bid", "long")
+                    entry     = float(pos.get("entry_price", 0))
+                    amount    = float(pos.get("amount", 0))          # in token units
+                    funding   = float(pos.get("funding", 0))
+                    isolated  = pos.get("isolated", False)
+                    margin    = float(pos.get("margin", 0)) if isolated else 0
+
+                    live_px   = port_prices.get(symbol, entry)
+                    size_usd  = amount * live_px                      # position size in $
+
+                    # Estimate leverage from market max if not isolated
+                    mkt       = port_markets.get(symbol, {})
+                    est_lev   = float(mkt.get("max_leverage", 10)) / 2  # conservative estimate
+                    if isolated and margin > 0:
+                        est_lev = round(size_usd / margin, 1)
+
+                    # Default SL/TP: ±5% / ±10% from entry (user can refine manually)
+                    est_sl = entry * (0.95 if is_long else 1.05)
+                    est_tp = entry * (1.10 if is_long else 0.90)
+
+                    sl_diff   = abs(entry - est_sl)
+                    pct_sl    = (sl_diff / entry) * 100 if entry > 0 else 5
+                    risk_amt  = (pct_sl / 100) * size_usd
+                    risk_pct  = (risk_amt / wallet_balance) * 100 if wallet_balance > 0 else 0
+                    tp_diff   = abs(est_tp - entry)
+                    pct_tp    = (tp_diff / entry) * 100 if entry > 0 else 10
+                    rew_amt   = (pct_tp / 100) * size_usd
+                    rr        = rew_amt / risk_amt if risk_amt > 0 else 0
+                    liq_drop  = 100 / est_lev if est_lev > 0 else 100
+                    liq_px    = entry * (1 - liq_drop / 100) if is_long else entry * (1 + liq_drop / 100)
+
+                    # Avoid duplicate import
+                    existing_syms = [(p["Symbol"], p["Direction"]) for p in st.session_state.portfolio]
+                    direction_str = "Long" if is_long else "Short"
+                    if (symbol, direction_str) not in existing_syms:
+                        st.session_state.portfolio_counter += 1
+                        st.session_state.portfolio.append({
+                            "Pos #"       : f"#{st.session_state.portfolio_counter}",
+                            "Symbol"      : symbol,
+                            "Direction"   : direction_str,
+                            "Entry"       : round(entry, 4),
+                            "Stop Loss"   : round(est_sl, 4),
+                            "Take Profit" : round(est_tp, 4),
+                            "Leverage"    : int(est_lev),
+                            "Size ($)"    : round(size_usd, 2),
+                            "Margin ($)"  : round(size_usd / est_lev, 2) if est_lev > 0 else 0,
+                            "Liq. Price"  : round(liq_px, 4),
+                            "Risk ($)"    : round(risk_amt, 2),
+                            "Risk %"      : round(risk_pct, 2),
+                            "Reward ($)"  : round(rew_amt, 2),
+                            "RR Ratio"    : round(rr, 2),
+                        })
+                        imported += 1
+
+                if imported > 0:
+                    st.success(f"✅ {imported} position(s) imported! Scroll down to see your portfolio.")
+                    st.info("💡 **Note:** Stop Loss and Take Profit are estimated at ±5%/±10% from entry. Edit them manually if you have specific levels set.")
+                    st.rerun()
+                else:
+                    st.warning("⚠️ All positions already in portfolio (no duplicates added).")
+
+    elif load_wallet and not wallet_address.strip():
+        st.warning("Please enter a wallet address first.")
+
+    st.divider()
+    st.markdown("#### ➕ Add Position Manually")
 
     pc1, pc2, pc3, pc4 = st.columns(4)
     with pc1:
