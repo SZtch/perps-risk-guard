@@ -1,19 +1,33 @@
 # ============================================================
 #  PERPS RISK GUARD
-#  Phase 3B — Pacifica API Integration
+#  Phase 4 — Plotly Charts + Enhanced Analytics
 #  Pacifica Hackathon | Analytics & Data Track
 # ============================================================
 
 import streamlit as st
 import pandas as pd
-import requests   # Built-in to Streamlit Cloud, no extra install needed
+import requests
+import plotly.graph_objects as go
+import plotly.express as px
+from plotly.subplots import make_subplots
 
 # ── Page Configuration ───────────────────────────────────────
 st.set_page_config(
     page_title="Perps Risk Guard",
     page_icon="⚡",
-    layout="centered"
+    layout="wide"
 )
+
+# ── Custom CSS ───────────────────────────────────────────────
+st.markdown("""
+<style>
+    .main { background-color: #0e1117; }
+    .stMetric { background-color: #1a1d27; border-radius: 8px; padding: 12px; }
+    .risk-safe    { color: #00d4aa; font-weight: bold; font-size: 1.2rem; }
+    .risk-medium  { color: #ffa500; font-weight: bold; font-size: 1.2rem; }
+    .risk-high    { color: #ff4b4b; font-weight: bold; font-size: 1.2rem; }
+</style>
+""", unsafe_allow_html=True)
 
 # ── Constants ────────────────────────────────────────────────
 PACIFICA_BASE_URL = "https://api.pacifica.fi/api/v1"
@@ -27,40 +41,27 @@ if "trade_counter" not in st.session_state:
     st.session_state.trade_counter = 0
 
 
-# ── Helper: Fetch Live Prices from Pacifica API ───────────────
+# ── Helper: Fetch Live Prices ─────────────────────────────────
 def fetch_prices():
-    """
-    Calls Pacifica public API to get live mark prices for all symbols.
-    Returns a dict like: { "BTC": 95000.0, "ETH": 3200.0, ... }
-    Returns empty dict if API call fails.
-    """
     try:
         response = requests.get(PRICES_ENDPOINT, timeout=5)
         data     = response.json()
-
         if data.get("success") and data.get("data"):
-            # Build a clean dict: symbol -> mark price (float)
             return {
                 item["symbol"]: float(item["mark"])
                 for item in data["data"]
                 if "symbol" in item and "mark" in item
             }
     except Exception:
-        pass  # If API fails, return empty dict silently
-
+        pass
     return {}
 
 
-# ── Helper: Fetch Market Info (for max leverage per symbol) ───
+# ── Helper: Fetch Market Info ─────────────────────────────────
 def fetch_markets():
-    """
-    Calls Pacifica public API to get market specs.
-    Returns a dict like: { "BTC": {"max_leverage": 50, ...}, ... }
-    """
     try:
         response = requests.get(MARKETS_ENDPOINT, timeout=5)
         data     = response.json()
-
         if data.get("success") and data.get("data"):
             return {
                 item["symbol"]: item
@@ -69,129 +70,352 @@ def fetch_markets():
             }
     except Exception:
         pass
-
     return {}
 
 
-# ── Header ───────────────────────────────────────────────────
+# ── Plotly: Risk Gauge ────────────────────────────────────────
+def make_risk_gauge(risk_pct):
+    color = "#00d4aa" if risk_pct < 5 else ("#ffa500" if risk_pct <= 15 else "#ff4b4b")
+    fig = go.Figure(go.Indicator(
+        mode="gauge+number+delta",
+        value=risk_pct,
+        number={"suffix": "%", "font": {"size": 36, "color": color}},
+        delta={"reference": 5, "increasing": {"color": "#ff4b4b"}, "decreasing": {"color": "#00d4aa"}},
+        gauge={
+            "axis": {"range": [0, 30], "tickwidth": 1, "tickcolor": "#555"},
+            "bar": {"color": color},
+            "bgcolor": "#1a1d27",
+            "borderwidth": 0,
+            "steps": [
+                {"range": [0,  5],  "color": "#0d2b22"},
+                {"range": [5,  15], "color": "#2b2200"},
+                {"range": [15, 30], "color": "#2b0d0d"},
+            ],
+            "threshold": {
+                "line": {"color": "white", "width": 2},
+                "thickness": 0.75,
+                "value": risk_pct
+            }
+        },
+        title={"text": "Risk % of Balance", "font": {"size": 16, "color": "#aaa"}}
+    ))
+    fig.update_layout(
+        paper_bgcolor="#1a1d27",
+        font_color="white",
+        height=260,
+        margin=dict(t=50, b=10, l=30, r=30)
+    )
+    return fig
+
+
+# ── Plotly: Price Level Chart ─────────────────────────────────
+def make_price_levels(entry, sl, tp, liq, symbol, is_long):
+    levels = {
+        "Take Profit": tp,
+        "Entry":       entry,
+        "Stop Loss":   sl,
+        "Liquidation": liq,
+    }
+    colors = {
+        "Take Profit": "#00d4aa",
+        "Entry":       "#4da6ff",
+        "Stop Loss":   "#ffa500",
+        "Liquidation": "#ff4b4b",
+    }
+    sorted_levels = sorted(levels.items(), key=lambda x: x[1], reverse=True)
+    labels  = [l[0] for l in sorted_levels]
+    prices  = [l[1] for l in sorted_levels]
+    clrs    = [colors[l[0]] for l in sorted_levels]
+
+    fig = go.Figure()
+
+    # Shaded zones
+    if is_long:
+        fig.add_hrect(y0=entry, y1=tp,  fillcolor="#00d4aa", opacity=0.08, line_width=0)
+        fig.add_hrect(y0=liq,   y1=entry, fillcolor="#ff4b4b", opacity=0.08, line_width=0)
+
+    for label, price, clr in zip(labels, prices, clrs):
+        fig.add_hline(
+            y=price, line_dash="dash", line_color=clr, line_width=1.5,
+            annotation_text=f"  {label}: ${price:,.2f}",
+            annotation_position="right",
+            annotation_font_color=clr,
+            annotation_font_size=12,
+        )
+
+    fig.add_trace(go.Scatter(
+        x=["Level"] * len(prices),
+        y=prices,
+        mode="markers",
+        marker=dict(size=12, color=clrs, symbol="diamond"),
+        text=labels,
+        hovertemplate="<b>%{text}</b><br>$%{y:,.2f}<extra></extra>"
+    ))
+
+    fig.update_layout(
+        title=f"{symbol} — Key Price Levels",
+        paper_bgcolor="#1a1d27",
+        plot_bgcolor="#0e1117",
+        font_color="white",
+        height=320,
+        margin=dict(t=50, b=20, l=20, r=120),
+        xaxis=dict(showticklabels=False, showgrid=False),
+        yaxis=dict(gridcolor="#2a2d3a", title="Price ($)"),
+        showlegend=False,
+    )
+    return fig
+
+
+# ── Plotly: Adverse Move Waterfall ────────────────────────────
+def make_adverse_waterfall(balance, position_size, entry_price, is_long, leverage):
+    moves   = list(range(1, 11))
+    losses  = [(pct / 100) * position_size for pct in moves]
+    balances = [balance - l for l in losses]
+    liq_pct  = 100 / leverage
+
+    fig = make_subplots(specs=[[{"secondary_y": True}]])
+
+    fig.add_trace(go.Bar(
+        x=[f"-{p}%" for p in moves],
+        y=losses,
+        name="Estimated Loss ($)",
+        marker_color=["#ff4b4b" if b > 0 else "#800000" for b in balances],
+        hovertemplate="Move: %{x}<br>Loss: $%{y:,.2f}<extra></extra>"
+    ), secondary_y=False)
+
+    fig.add_trace(go.Scatter(
+        x=[f"-{p}%" for p in moves],
+        y=balances,
+        name="Remaining Balance ($)",
+        mode="lines+markers",
+        line=dict(color="#4da6ff", width=2),
+        marker=dict(size=6),
+        hovertemplate="Move: %{x}<br>Balance: $%{y:,.2f}<extra></extra>"
+    ), secondary_y=True)
+
+    # Liquidation line
+    if liq_pct <= 10:
+        fig.add_vline(
+            x=f"-{int(liq_pct)}%",
+            line_dash="dot",
+            line_color="#ff4b4b",
+            annotation_text="⚡ Liquidation",
+            annotation_font_color="#ff4b4b"
+        )
+
+    fig.update_layout(
+        title="Adverse Move Simulation (1%–10%)",
+        paper_bgcolor="#1a1d27",
+        plot_bgcolor="#0e1117",
+        font_color="white",
+        height=340,
+        margin=dict(t=50, b=20, l=20, r=20),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        xaxis=dict(gridcolor="#2a2d3a"),
+        yaxis=dict(gridcolor="#2a2d3a", title="Loss ($)"),
+        yaxis2=dict(title="Balance ($)", overlaying="y", side="right"),
+        hovermode="x unified"
+    )
+    return fig
+
+
+# ── Plotly: Analytics Charts ──────────────────────────────────
+def make_rr_chart(df):
+    colors = df["Classification"].map({
+        "SAFE": "#00d4aa", "MEDIUM RISK": "#ffa500", "HIGH RISK": "#ff4b4b"
+    }).fillna("#aaa")
+
+    fig = go.Figure()
+    fig.add_trace(go.Bar(
+        x=df["Trade #"],
+        y=df["Risk Amount"],
+        name="Risk ($)",
+        marker_color="#ff6b6b",
+        hovertemplate="<b>%{x}</b><br>Risk: $%{y:,.2f}<extra></extra>"
+    ))
+    fig.add_trace(go.Bar(
+        x=df["Trade #"],
+        y=df["Reward Amount"],
+        name="Reward ($)",
+        marker_color="#00d4aa",
+        hovertemplate="<b>%{x}</b><br>Reward: $%{y:,.2f}<extra></extra>"
+    ))
+    fig.update_layout(
+        title="Risk vs Reward per Trade",
+        barmode="group",
+        paper_bgcolor="#1a1d27",
+        plot_bgcolor="#0e1117",
+        font_color="white",
+        height=320,
+        margin=dict(t=50, b=20, l=20, r=20),
+        xaxis=dict(gridcolor="#2a2d3a"),
+        yaxis=dict(gridcolor="#2a2d3a", title="Amount ($)"),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02)
+    )
+    return fig
+
+
+def make_risk_pct_chart(df):
+    colors = df["Classification"].map({
+        "SAFE": "#00d4aa", "MEDIUM RISK": "#ffa500", "HIGH RISK": "#ff4b4b"
+    }).fillna("#aaa")
+
+    fig = go.Figure()
+    fig.add_hrect(y0=0, y1=5, fillcolor="#00d4aa", opacity=0.05, line_width=0, annotation_text="Safe zone", annotation_position="right")
+    fig.add_hrect(y0=5, y1=15, fillcolor="#ffa500", opacity=0.05, line_width=0, annotation_text="Medium zone", annotation_position="right")
+    fig.add_hrect(y0=15, y1=max(df["Risk %"].max() + 5, 20), fillcolor="#ff4b4b", opacity=0.05, line_width=0, annotation_text="High risk zone", annotation_position="right")
+    fig.add_hline(y=5,  line_dash="dot", line_color="#00d4aa", line_width=1)
+    fig.add_hline(y=15, line_dash="dot", line_color="#ff4b4b", line_width=1)
+
+    fig.add_trace(go.Scatter(
+        x=df["Trade #"],
+        y=df["Risk %"],
+        mode="lines+markers",
+        line=dict(width=2, color="#4da6ff"),
+        marker=dict(size=10, color=colors, line=dict(width=2, color="white")),
+        hovertemplate="<b>%{x}</b><br>Risk: %{y:.2f}%<extra></extra>"
+    ))
+    fig.update_layout(
+        title="Risk % per Trade (with Safe/Medium/High zones)",
+        paper_bgcolor="#1a1d27",
+        plot_bgcolor="#0e1117",
+        font_color="white",
+        height=320,
+        margin=dict(t=50, b=20, l=20, r=80),
+        xaxis=dict(gridcolor="#2a2d3a"),
+        yaxis=dict(gridcolor="#2a2d3a", title="Risk %")
+    )
+    return fig
+
+
+def make_rr_ratio_chart(df):
+    fig = go.Figure()
+    fig.add_hline(y=2, line_dash="dot", line_color="#00d4aa", line_width=1,
+                  annotation_text="Good RR (1:2)", annotation_position="right",
+                  annotation_font_color="#00d4aa")
+
+    fig.add_trace(go.Bar(
+        x=df["Trade #"],
+        y=df["RR Ratio"],
+        marker_color=["#00d4aa" if r >= 2 else "#ffa500" if r >= 1 else "#ff4b4b" for r in df["RR Ratio"]],
+        hovertemplate="<b>%{x}</b><br>RR Ratio: 1:%{y:.2f}<extra></extra>"
+    ))
+    fig.update_layout(
+        title="Risk/Reward Ratio per Trade",
+        paper_bgcolor="#1a1d27",
+        plot_bgcolor="#0e1117",
+        font_color="white",
+        height=320,
+        margin=dict(t=50, b=20, l=20, r=80),
+        xaxis=dict(gridcolor="#2a2d3a"),
+        yaxis=dict(gridcolor="#2a2d3a", title="RR Ratio"),
+        showlegend=False
+    )
+    return fig
+
+
+def make_classification_pie(df):
+    counts = df["Classification"].value_counts()
+    color_map = {"SAFE": "#00d4aa", "MEDIUM RISK": "#ffa500", "HIGH RISK": "#ff4b4b"}
+    fig = go.Figure(go.Pie(
+        labels=counts.index,
+        values=counts.values,
+        marker_colors=[color_map.get(c, "#aaa") for c in counts.index],
+        hole=0.5,
+        textinfo="label+percent",
+        hovertemplate="<b>%{label}</b><br>%{value} trades (%{percent})<extra></extra>"
+    ))
+    fig.update_layout(
+        title="Trade Risk Distribution",
+        paper_bgcolor="#1a1d27",
+        font_color="white",
+        height=320,
+        margin=dict(t=50, b=20, l=20, r=20),
+        showlegend=False
+    )
+    return fig
+
+
+# ═══════════════════════════════════════════════════════════
+#  HEADER
+# ═══════════════════════════════════════════════════════════
 st.title("⚡ Perps Risk Guard")
-st.caption("Know your risk before you enter the trade.")
+st.caption("Know your risk before you enter the trade. Powered by Pacifica API.")
 st.divider()
 
-# ── Tabs ─────────────────────────────────────────────────────
 tab1, tab2, tab3 = st.tabs(["🔍  Calculator", "📊  Analytics", "🌐  Live Market"])
 
 
-# ════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════
 #  TAB 1 — CALCULATOR
-# ════════════════════════════════════════════════════════════
-
+# ═══════════════════════════════════════════════════════════
 with tab1:
 
     st.subheader("① Trade Details")
 
-    # ── Fetch live prices on load ─────────────────────────────
     live_prices  = fetch_prices()
     live_markets = fetch_markets()
 
-    # List of available symbols from API, fallback to common ones
     available_symbols = sorted(live_prices.keys()) if live_prices else ["BTC", "ETH", "SOL"]
 
-    # Symbol selector
-    selected_symbol = st.selectbox(
-        "Select Symbol",
-        options=available_symbols,
-        index=available_symbols.index("BTC") if "BTC" in available_symbols else 0
-    )
+    col_sym, col_dir = st.columns([2, 2])
+    with col_sym:
+        selected_symbol = st.selectbox("Select Symbol", options=available_symbols,
+                                       index=available_symbols.index("BTC") if "BTC" in available_symbols else 0)
+    with col_dir:
+        direction = st.radio("Position Direction", options=["Long 📈", "Short 📉"], horizontal=True)
 
-    # Get live price for selected symbol
+    is_long    = direction.startswith("Long")
     live_price = live_prices.get(selected_symbol, 0.0)
 
-    # Show live price badge
     if live_price > 0:
         st.success(f"🟢  Live {selected_symbol} Mark Price: **${live_price:,.2f}**  *(from Pacifica API)*")
     else:
         st.warning("⚠️  Could not fetch live price. Please enter entry price manually.")
 
-    # Get max leverage for selected symbol from market info
     market_info  = live_markets.get(selected_symbol, {})
     max_leverage = float(market_info.get("max_leverage", 1000))
 
     st.write("")
 
-    direction = st.radio(
-        "Position Direction",
-        options=["Long 📈", "Short 📉"],
-        horizontal=True
-    )
-    is_long = direction.startswith("Long")
-
-    st.write("")
-
     col1, col2, col3 = st.columns(3)
-
     with col1:
         balance       = st.number_input("Account Balance ($)",   min_value=1.0,    value=1000.0,   step=100.0)
-        stop_loss     = st.number_input("Stop Loss Price ($)",    min_value=0.01,   value=round(live_price * 0.95, 2) if live_price > 0 else 95.0, step=1.0)
-
+        stop_loss     = st.number_input("Stop Loss Price ($)",   min_value=0.01,
+                                         value=round(live_price * 0.95, 2) if live_price > 0 else 95.0, step=1.0)
     with col2:
-        position_size = st.number_input("Position Size ($)",      min_value=1.0,    value=5000.0,   step=100.0)
-        take_profit   = st.number_input("Take Profit Price ($)",  min_value=0.01,   value=round(live_price * 1.10, 2) if live_price > 0 else 110.0, step=1.0)
-
+        position_size = st.number_input("Position Size ($)",     min_value=1.0,    value=5000.0,   step=100.0)
+        take_profit   = st.number_input("Take Profit Price ($)", min_value=0.01,
+                                         value=round(live_price * 1.10, 2) if live_price > 0 else 110.0, step=1.0)
     with col3:
-        # Entry price defaults to live mark price
-        entry_price   = st.number_input(
-            "Entry Price ($)",
-            min_value=0.01,
-            value=round(live_price, 2) if live_price > 0 else 100.0,
-            step=1.0
-        )
-        leverage      = st.number_input(
-            f"Leverage (max {int(max_leverage)}x)",
-            min_value=1.0,
-            max_value=max_leverage,
-            value=5.0,
-            step=1.0
-        )
+        entry_price   = st.number_input("Entry Price ($)", min_value=0.01,
+                                         value=round(live_price, 2) if live_price > 0 else 100.0, step=1.0)
+        leverage      = st.number_input(f"Leverage (max {int(max_leverage)}x)",
+                                         min_value=1.0, max_value=max_leverage, value=5.0, step=1.0)
 
     st.divider()
 
-    # ── Calculate Button ──────────────────────────────────────
-    if st.button("🔍 Calculate Risk", use_container_width=True):
+    if st.button("🔍 Calculate Risk", use_container_width=True, type="primary"):
 
-        # ── Validation ───────────────────────────────────────
+        # ── Validation ──────────────────────────────────────
         if entry_price == stop_loss:
-            st.error("❌  Entry price and stop loss cannot be the same.")
-            st.stop()
-
+            st.error("❌  Entry price and stop loss cannot be the same."); st.stop()
         if entry_price == take_profit:
-            st.error("❌  Entry price and take profit cannot be the same.")
-            st.stop()
-
+            st.error("❌  Entry price and take profit cannot be the same."); st.stop()
         if position_size > balance * leverage:
-            st.error("❌  Position size exceeds your balance × leverage limit.")
-            st.stop()
-
+            st.error("❌  Position size exceeds your balance × leverage limit."); st.stop()
         if is_long and stop_loss >= entry_price:
-            st.error("❌  Long position: stop loss must be below entry price.")
-            st.stop()
-
+            st.error("❌  Long position: stop loss must be below entry price."); st.stop()
         if is_long and take_profit <= entry_price:
-            st.error("❌  Long position: take profit must be above entry price.")
-            st.stop()
-
+            st.error("❌  Long position: take profit must be above entry price."); st.stop()
         if not is_long and stop_loss <= entry_price:
-            st.error("❌  Short position: stop loss must be above entry price.")
-            st.stop()
-
+            st.error("❌  Short position: stop loss must be above entry price."); st.stop()
         if not is_long and take_profit >= entry_price:
-            st.error("❌  Short position: take profit must be below entry price.")
-            st.stop()
-
+            st.error("❌  Short position: take profit must be below entry price."); st.stop()
         if leverage >= 100:
             st.warning(f"⚠️  You are using {int(leverage)}x leverage. Liquidation price is very close to entry.")
 
-        # ── Calculations ─────────────────────────────────────
+        # ── Calculations ────────────────────────────────────
         sl_diff             = abs(entry_price - stop_loss)
         pct_to_sl           = (sl_diff / entry_price) * 100
         risk_amount         = (pct_to_sl / 100) * position_size
@@ -219,7 +443,7 @@ with tab1:
         else:
             risk_label = "HIGH RISK"
 
-        # ── Save to Trade History ─────────────────────────────
+        # ── Save to Trade History ────────────────────────────
         st.session_state.trade_counter += 1
         st.session_state.trade_history.append({
             "Trade #"            : f"#{st.session_state.trade_counter}",
@@ -239,23 +463,27 @@ with tab1:
             "Classification"     : risk_label,
         })
 
-        # ── Section 3: Results ───────────────────────────────
+        # ── Section 2: Risk Gauge + Price Levels ────────────
         direction_label = "Long 📈" if is_long else "Short 📉"
         st.subheader(f"② Risk Analysis — {selected_symbol} {direction_label}")
 
+        gauge_col, levels_col = st.columns([1, 1.6])
+        with gauge_col:
+            st.plotly_chart(make_risk_gauge(risk_pct), use_container_width=True)
+        with levels_col:
+            st.plotly_chart(make_price_levels(entry_price, stop_loss, take_profit, liq_price, selected_symbol, is_long),
+                            use_container_width=True)
+
+        # ── Metrics ─────────────────────────────────────────
         c1, c2, c3 = st.columns(3)
         c1.metric("Risk Amount",         f"${risk_amount:,.2f}")
         c2.metric("Risk % of Balance",   f"{risk_pct:.2f}%")
         c3.metric("Est. Liquidation",    f"${liq_price:,.2f}")
 
-        st.write("")
-
         r1, r2, r3 = st.columns(3)
         r1.metric("Potential Reward",    f"${reward_amount:,.2f}")
         r2.metric("Risk / Reward Ratio", f"1 : {rr_ratio:.2f}")
         r3.metric("Leverage Used",       f"{int(leverage)}x")
-
-        st.write("")
 
         e1, e2, e3 = st.columns(3)
         e1.metric("Capital Utilization", f"{capital_utilization:.2f}x")
@@ -266,10 +494,8 @@ with tab1:
             f"📌  **Capital Utilization {capital_utilization:.2f}x** — "
             f"your position is {capital_utilization:.2f}x your total balance.   "
             f"**Effective Leverage {effective_leverage:.2f}x** — "
-            f"your actual leveraged exposure based on margin used (${margin_used:,.2f})."
+            f"actual leveraged exposure based on margin used (${margin_used:,.2f})."
         )
-
-        st.write("")
 
         p1, p2, p3 = st.columns(3)
         p1.metric("% Move to Stop Loss",   f"{pct_to_sl:.2f}%")
@@ -278,9 +504,8 @@ with tab1:
 
         st.divider()
 
-        # ── Risk Classification ───────────────────────────────
+        # ── Risk Classification ──────────────────────────────
         st.subheader("③ Risk Classification")
-
         if risk_pct < 5:
             st.success("✅  SAFE — Risk is within a healthy range (< 5% of balance).")
         elif risk_pct <= 15:
@@ -288,31 +513,62 @@ with tab1:
         else:
             st.error("🔴  HIGH RISK — This trade risks too much of your balance (> 15%).")
 
+        # ── Auto Insight ─────────────────────────────────────
+        st.subheader("💡 Smart Insights")
+
+        insights = []
+        if rr_ratio < 1:
+            insights.append("🔴 **Poor RR Ratio** — You're risking more than your potential reward. Consider moving your take profit further or tightening your stop loss.")
+        elif rr_ratio < 2:
+            insights.append("🟡 **Decent RR** — A 1:2 ratio is generally the minimum for sustainable trading. Try to get at least 1:2.")
+        else:
+            insights.append(f"🟢 **Good RR Ratio** — Your 1:{rr_ratio:.1f} ratio gives you a statistical edge even with a 50% win rate.")
+
+        if leverage > 20:
+            insights.append(f"⚠️ **High Leverage Warning** — At {int(leverage)}x, a {liq_drop:.1f}% move against you triggers liquidation. Make sure your stop loss is well above ${liq_price:,.2f}.")
+        elif leverage > 10:
+            insights.append(f"🟡 **Moderate Leverage** — {int(leverage)}x leverage is manageable, but stay disciplined with your stop loss.")
+        else:
+            insights.append(f"🟢 **Conservative Leverage** — {int(leverage)}x is relatively safe. Your liquidation price (${liq_price:,.2f}) has a good buffer.")
+
+        if capital_utilization > 5:
+            insights.append(f"⚠️ **Overexposed** — Your position is {capital_utilization:.1f}x your balance. Consider sizing down to protect your account.")
+        elif capital_utilization > 2:
+            insights.append(f"🟡 **Position Sizing** — Position is {capital_utilization:.1f}x your balance. Manageable, but monitor closely.")
+        else:
+            insights.append(f"🟢 **Well-Sized Position** — Position size relative to balance looks healthy.")
+
+        for insight in insights:
+            st.markdown(f"- {insight}")
+
         st.divider()
 
-        # ── Adverse Move Simulation ───────────────────────────
+        # ── Adverse Move Simulation ──────────────────────────
         st.subheader("④ Adverse Move Simulation")
-
         move_label = "falls" if is_long else "rises"
         st.caption(f"What happens if {selected_symbol} price {move_label} against your {'Long' if is_long else 'Short'} position?")
 
+        st.plotly_chart(
+            make_adverse_waterfall(balance, position_size, entry_price, is_long, leverage),
+            use_container_width=True
+        )
+
+        # Table version for quick reference
         rows = []
-        for pct in [1, 2, 3]:
-            new_price = (
-                entry_price * (1 - pct / 100) if is_long
-                else entry_price * (1 + pct / 100)
-            )
+        for pct in [1, 2, 3, 5, 10]:
+            new_price   = entry_price * (1 - pct/100) if is_long else entry_price * (1 + pct/100)
             pnl         = -1 * (pct / 100) * position_size
             new_balance = balance + pnl
-
             rows.append({
                 "Adverse Move"      : f"-{pct}%",
                 "New Price"         : f"${new_price:,.2f}",
                 "Estimated Loss"    : f"(${abs(pnl):,.2f})",
-                "Remaining Balance" : f"${new_balance:,.2f}"
+                "Remaining Balance" : f"${new_balance:,.2f}",
+                "Status"            : "💀 Liquidated" if new_price <= liq_price and is_long else
+                                      "💀 Liquidated" if new_price >= liq_price and not is_long else "✅ Alive"
             })
 
-        st.table(pd.DataFrame(rows).set_index("Adverse Move"))
+        st.dataframe(pd.DataFrame(rows).set_index("Adverse Move"), use_container_width=True)
 
         st.divider()
         st.info("💡 Discipline in risk management is the key to surviving the market.")
@@ -321,19 +577,16 @@ with tab1:
             st.success(f"📊  You now have {len(st.session_state.trade_history)} trades saved. Check the **Analytics** tab!")
 
 
-# ════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════
 #  TAB 2 — ANALYTICS
-# ════════════════════════════════════════════════════════════
-
+# ═══════════════════════════════════════════════════════════
 with tab2:
 
     if len(st.session_state.trade_history) == 0:
         st.info("📭  No trades yet. Go to the **Calculator** tab, enter a trade, and click Calculate Risk.")
-
     else:
         df = pd.DataFrame(st.session_state.trade_history)
 
-        # Backfill missing columns from older sessions
         if "Symbol" not in df.columns:
             df["Symbol"] = "-"
 
@@ -342,15 +595,9 @@ with tab2:
 
         summary_cols = [
             "Trade #", "Symbol", "Direction", "Entry", "Stop Loss", "Take Profit",
-            "Leverage", "Risk Amount", "Risk %", "Reward Amount",
-            "RR Ratio", "Classification"
+            "Leverage", "Risk Amount", "Risk %", "Reward Amount", "RR Ratio", "Classification"
         ]
-
-        st.dataframe(
-            df[summary_cols].set_index("Trade #"),
-            hide_index=False,
-            use_container_width=True
-        )
+        st.dataframe(df[summary_cols].set_index("Trade #"), hide_index=False, use_container_width=True)
 
         st.divider()
 
@@ -365,35 +612,27 @@ with tab2:
         high_count   = len(df[df["Classification"] == "HIGH RISK"])
 
         a1, a2, a3, a4 = st.columns(4)
-        a1.metric("Total Trades",      total_trades)
-        a2.metric("Avg Risk %",        f"{avg_risk_pct:.2f}%")
-        a3.metric("Avg RR Ratio",      f"1 : {avg_rr:.2f}")
-        a4.metric("Best RR Ratio",     f"1 : {best_rr:.2f}")
-
-        st.write("")
+        a1.metric("Total Trades",   total_trades)
+        a2.metric("Avg Risk %",     f"{avg_risk_pct:.2f}%")
+        a3.metric("Avg RR Ratio",   f"1 : {avg_rr:.2f}")
+        a4.metric("Best RR Ratio",  f"1 : {best_rr:.2f}")
 
         b1, b2, b3 = st.columns(3)
-        b1.metric("✅  Safe Trades",       safe_count)
-        b2.metric("⚠️  Medium Trades",     medium_count)
-        b3.metric("🔴  High Risk Trades",  high_count)
+        b1.metric("✅  Safe Trades",      safe_count)
+        b2.metric("⚠️  Medium Trades",    medium_count)
+        b3.metric("🔴  High Risk Trades", high_count)
 
         st.divider()
 
-        st.subheader("📉 Risk vs Reward per Trade")
-        st.caption("Comparing risk amount against potential reward for each trade.")
-        st.bar_chart(df[["Trade #", "Risk Amount", "Reward Amount"]].set_index("Trade #"), use_container_width=True)
+        # ── Plotly Charts ────────────────────────────────────
+        ch1, ch2 = st.columns(2)
+        with ch1:
+            st.plotly_chart(make_rr_chart(df), use_container_width=True)
+        with ch2:
+            st.plotly_chart(make_classification_pie(df), use_container_width=True)
 
-        st.write("")
-
-        st.subheader("📊 Risk % per Trade")
-        st.caption("Healthy range is below 5%.")
-        st.line_chart(df[["Trade #", "Risk %"]].set_index("Trade #"), use_container_width=True)
-
-        st.write("")
-
-        st.subheader("⚖️ RR Ratio per Trade")
-        st.caption("Higher is better. A ratio above 1:2 is generally considered good.")
-        st.bar_chart(df[["Trade #", "RR Ratio"]].set_index("Trade #"), use_container_width=True)
+        st.plotly_chart(make_risk_pct_chart(df), use_container_width=True)
+        st.plotly_chart(make_rr_ratio_chart(df), use_container_width=True)
 
         st.divider()
 
@@ -403,38 +642,34 @@ with tab2:
             st.rerun()
 
 
-# ════════════════════════════════════════════════════════════
-#  TAB 3 — LIVE MARKET (Pacifica API)
-# ════════════════════════════════════════════════════════════
-
+# ═══════════════════════════════════════════════════════════
+#  TAB 3 — LIVE MARKET
+# ═══════════════════════════════════════════════════════════
 with tab3:
 
     st.subheader("🌐 Live Market Data")
     st.caption("Powered by Pacifica API — prices update on every page refresh.")
 
-    # Refresh button
     if st.button("🔄  Refresh Prices", use_container_width=False):
         st.rerun()
 
-    # Fetch fresh data
     prices  = fetch_prices()
     markets = fetch_markets()
 
     if not prices:
         st.error("❌  Could not connect to Pacifica API. Please try refreshing.")
-
     else:
-        # Build a combined market table
         market_rows = []
         for symbol, mark_price in sorted(prices.items()):
             market_data = markets.get(symbol, {})
+            funding     = float(market_data.get("funding_rate", 0)) * 100
             market_rows.append({
-                "Symbol"        : symbol,
-                "Mark Price"    : f"${mark_price:,.4f}",
-                "Max Leverage"  : f"{market_data.get('max_leverage', '-')}x",
-                "Funding Rate"  : f"{float(market_data.get('funding_rate', 0)) * 100:.4f}%",
-                "Min Order"     : f"${market_data.get('min_order_size', '-')}",
-                "Max Order"     : f"${market_data.get('max_order_size', '-')}",
+                "Symbol"       : symbol,
+                "Mark Price"   : f"${mark_price:,.4f}",
+                "Max Leverage" : f"{market_data.get('max_leverage', '-')}x",
+                "Funding Rate" : f"{funding:+.4f}%",
+                "Min Order"    : f"${market_data.get('min_order_size', '-')}",
+                "Max Order"    : f"${market_data.get('max_order_size', '-')}",
             })
 
         st.dataframe(
@@ -442,6 +677,37 @@ with tab3:
             hide_index=False,
             use_container_width=True
         )
+
+        # ── Funding Rate Bar Chart ────────────────────────────
+        funding_data = []
+        for symbol, mark_price in sorted(prices.items()):
+            market_data = markets.get(symbol, {})
+            funding     = float(market_data.get("funding_rate", 0)) * 100
+            if funding != 0:
+                funding_data.append({"Symbol": symbol, "Funding Rate (%)": funding})
+
+        if funding_data:
+            fdf    = pd.DataFrame(funding_data).sort_values("Funding Rate (%)")
+            colors = ["#ff4b4b" if f > 0 else "#00d4aa" for f in fdf["Funding Rate (%)"]]
+
+            fig = go.Figure(go.Bar(
+                x=fdf["Symbol"],
+                y=fdf["Funding Rate (%)"],
+                marker_color=colors,
+                hovertemplate="<b>%{x}</b><br>Funding: %{y:+.4f}%<extra></extra>"
+            ))
+            fig.add_hline(y=0, line_color="white", line_width=0.5)
+            fig.update_layout(
+                title="Funding Rates — Positive (Longs pay) | Negative (Shorts pay)",
+                paper_bgcolor="#1a1d27",
+                plot_bgcolor="#0e1117",
+                font_color="white",
+                height=350,
+                margin=dict(t=60, b=20, l=20, r=20),
+                xaxis=dict(gridcolor="#2a2d3a"),
+                yaxis=dict(gridcolor="#2a2d3a", title="Funding Rate (%)")
+            )
+            st.plotly_chart(fig, use_container_width=True)
 
         st.divider()
         st.caption(f"✅  Live data from `{PRICES_ENDPOINT}` — {len(prices)} markets loaded.")
