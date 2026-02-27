@@ -333,6 +333,10 @@ with tab2:
     else:
         df = pd.DataFrame(st.session_state.trade_history)
 
+        # Backfill missing columns from older sessions
+        if "Symbol" not in df.columns:
+            df["Symbol"] = "-"
+
         st.subheader("📋 Trade History")
         st.caption(f"{len(df)} trade(s) analyzed this session.")
 
