@@ -41,16 +41,16 @@ st.write("")
 col1, col2, col3 = st.columns(3)
 
 with col1:
-    balance       = st.number_input("Account Balance ($)",  min_value=1.0,    value=1000.0,  step=100.0)
-    stop_loss     = st.number_input("Stop Loss Price ($)",   min_value=0.01,   value=95.0,    step=1.0)
+    balance       = st.number_input("Account Balance ($)",   min_value=1.0,    value=1000.0,  step=100.0)
+    stop_loss     = st.number_input("Stop Loss Price ($)",    min_value=0.01,   value=95.0,    step=1.0)
 
 with col2:
-    position_size = st.number_input("Position Size ($)",     min_value=1.0,    value=5000.0,  step=100.0)
-    take_profit   = st.number_input("Take Profit Price ($)", min_value=0.01,   value=110.0,   step=1.0)
+    position_size = st.number_input("Position Size ($)",      min_value=1.0,    value=5000.0,  step=100.0)
+    take_profit   = st.number_input("Take Profit Price ($)",  min_value=0.01,   value=110.0,   step=1.0)
 
 with col3:
-    entry_price   = st.number_input("Entry Price ($)",       min_value=0.01,   value=100.0,   step=1.0)
-    leverage      = st.number_input("Leverage",              min_value=1.0,    max_value=1000.0, value=5.0, step=1.0)
+    entry_price   = st.number_input("Entry Price ($)",        min_value=0.01,   value=100.0,   step=1.0)
+    leverage      = st.number_input("Leverage",               min_value=1.0,    max_value=1000.0, value=5.0, step=1.0)
 
 st.divider()
 
@@ -99,41 +99,36 @@ if st.button("🔍 Calculate Risk", use_container_width=True):
     # ── Calculations ─────────────────────────────────────────
 
     # --- Risk (Stop Loss side) ---
-
-    # Price gap from entry to stop loss
-    sl_diff    = abs(entry_price - stop_loss)
-
-    # Percentage move to hit stop loss
-    pct_to_sl  = (sl_diff / entry_price) * 100
-
-    # Dollar amount lost if stop loss is hit
-    risk_amount = (pct_to_sl / 100) * position_size
-
-    # Risk as a percentage of total balance
-    risk_pct    = (risk_amount / balance) * 100
+    sl_diff       = abs(entry_price - stop_loss)
+    pct_to_sl     = (sl_diff / entry_price) * 100
+    risk_amount   = (pct_to_sl / 100) * position_size
+    risk_pct      = (risk_amount / balance) * 100
 
     # --- Reward (Take Profit side) ---
-
-    # Price gap from entry to take profit
-    tp_diff     = abs(take_profit - entry_price)
-
-    # Percentage move to hit take profit
-    pct_to_tp   = (tp_diff / entry_price) * 100
-
-    # Dollar amount gained if take profit is hit
+    tp_diff       = abs(take_profit - entry_price)
+    pct_to_tp     = (tp_diff / entry_price) * 100
     reward_amount = (pct_to_tp / 100) * position_size
 
     # --- Risk / Reward Ratio ---
-    # How much you gain vs how much you risk
-    # Example: risk $100, reward $300 → RR = 3.0
-    rr_ratio    = reward_amount / risk_amount
+    rr_ratio      = reward_amount / risk_amount
 
-    # --- Other Metrics ---
+    # --- Exposure Metrics ---
 
-    # Ratio of position size to account balance
-    exposure_ratio = position_size / balance
+    # Capital Utilization: how much of your total balance is deployed
+    # Example: $5,000 position on $1,000 balance = 5.00x
+    # This tells you: your position is 5x your account size
+    capital_utilization = position_size / balance
 
-    # Estimated liquidation price
+    # Effective Leverage: your actual leveraged exposure
+    # margin_used = how much of your balance is locked as margin
+    # Example: $5,000 position at 25x leverage → margin = $5,000 / 25 = $200
+    # Effective leverage = $5,000 / $200 = 25.00x
+    margin_used        = balance / leverage
+    effective_leverage = position_size / margin_used
+
+    # --- Liquidation Price ---
+    # Long:  liquidated when price falls (100 / leverage)% from entry
+    # Short: liquidated when price rises (100 / leverage)% from entry
     liq_drop  = 100 / leverage
     liq_price = (
         entry_price * (1 - liq_drop / 100) if is_long
@@ -148,27 +143,43 @@ if st.button("🔍 Calculate Risk", use_container_width=True):
     direction_label = "Long 📈" if is_long else "Short 📉"
     st.subheader(f"② Risk Analysis — {direction_label}")
 
-    # Row 1: Risk metrics
+    # Row 1: Core risk metrics
     c1, c2, c3 = st.columns(3)
-    c1.metric("Risk Amount",         f"${risk_amount:,.2f}")
-    c2.metric("Risk % of Balance",   f"{risk_pct:.2f}%")
-    c3.metric("Exposure Ratio",      f"{exposure_ratio:.2f}x")
+    c1.metric("Risk Amount",          f"${risk_amount:,.2f}")
+    c2.metric("Risk % of Balance",    f"{risk_pct:.2f}%")
+    c3.metric("Est. Liquidation",     f"${liq_price:,.2f}")
 
     st.write("")
 
-    # Row 2: Reward + RR + Liquidation
+    # Row 2: Reward metrics
     r1, r2, r3 = st.columns(3)
-    r1.metric("Potential Reward",    f"${reward_amount:,.2f}")
-    r2.metric("Risk / Reward Ratio", f"1 : {rr_ratio:.2f}")
-    r3.metric("Est. Liquidation",    f"${liq_price:,.2f}")
+    r1.metric("Potential Reward",     f"${reward_amount:,.2f}")
+    r2.metric("Risk / Reward Ratio",  f"1 : {rr_ratio:.2f}")
+    r3.metric("Leverage Used",        f"{int(leverage)}x")
 
     st.write("")
 
-    # Row 3: Price distances
+    # Row 3: Exposure metrics — both shown side by side
+    e1, e2, e3 = st.columns(3)
+    e1.metric("Capital Utilization",  f"{capital_utilization:.2f}x")
+    e2.metric("Effective Leverage",   f"{effective_leverage:.2f}x")
+    e3.metric("Margin Used",          f"${margin_used:,.2f}")
+
+    # Explain the difference between the two exposure metrics
+    st.caption(
+        f"📌  **Capital Utilization {capital_utilization:.2f}x** — "
+        f"your position is {capital_utilization:.2f}x your total balance.   "
+        f"**Effective Leverage {effective_leverage:.2f}x** — "
+        f"your actual leveraged exposure based on margin used (${margin_used:,.2f})."
+    )
+
+    st.write("")
+
+    # Row 4: Distance metrics
     p1, p2, p3 = st.columns(3)
-    p1.metric("% Move to Stop Loss",    f"{pct_to_sl:.2f}%")
-    p2.metric("% Move to Take Profit",  f"{pct_to_tp:.2f}%")
-    p3.metric("Leverage Used",          f"{int(leverage)}x")
+    p1.metric("% Move to Stop Loss",   f"{pct_to_sl:.2f}%")
+    p2.metric("% Move to Take Profit", f"{pct_to_tp:.2f}%")
+    p3.metric("Max Position Allowed",  f"${balance * leverage:,.2f}")
 
     st.divider()
 
@@ -215,17 +226,13 @@ if st.button("🔍 Calculate Risk", use_container_width=True):
 
         rows.append({
             "Adverse Move"      : f"-{pct}%",
-            "New Price"         : f"${new_price:,.4f}",
-            "Estimated Loss"    : f"-${abs(pnl):,.2f}",
+            "New Price"         : f"${new_price:,.2f}",
+            "Estimated Loss"    : f"(${abs(pnl):,.2f})",
             "Remaining Balance" : f"${new_balance:,.2f}"
         })
 
-    # hide_index removes the 0, 1, 2 row numbers
-    st.dataframe(
-        pd.DataFrame(rows),
-        hide_index=True,
-        use_container_width=True
-    )
+    # st.table with Adverse Move as index — clean, no toolbar
+    st.table(pd.DataFrame(rows).set_index("Adverse Move"))
 
     st.divider()
     st.info("💡 Discipline in risk management is the key to surviving the market.")
