@@ -42,11 +42,31 @@ left, right = st.columns(2)
 with left:
     balance       = st.number_input("Account Balance ($)",  min_value=1.0,  value=1000.0, step=100.0)
     entry_price   = st.number_input("Entry Price ($)",       min_value=0.01, value=100.0,  step=1.0)
-    leverage      = st.number_input("Leverage",              min_value=1.0,  value=5.0,    step=1.0)
+    leverage      = st.number_input("Leverage",              min_value=1.0,  max_value=1000.0, value=5.0, step=1.0)
 
 with right:
     position_size = st.number_input("Position Size ($)",     min_value=1.0,  value=5000.0, step=100.0)
     stop_loss     = st.number_input("Stop Loss Price ($)",   min_value=0.01, value=95.0,   step=1.0)
+
+# Leverage slider — lets user quickly pick from 1x to 1000x
+# This overrides the number_input above when moved
+leverage = st.slider(
+    "Leverage (drag or type above)",
+    min_value=1,
+    max_value=1000,
+    value=int(leverage),   # sync with the number_input value
+    step=1
+)
+
+# Quick preset buttons for common leverage values
+st.caption("Quick select:")
+q1, q2, q3, q4, q5, q6 = st.columns(6)
+if q1.button("5x"):   leverage = 5
+if q2.button("10x"):  leverage = 10
+if q3.button("20x"):  leverage = 20
+if q4.button("50x"):  leverage = 50
+if q5.button("100x"): leverage = 100
+if q6.button("125x"): leverage = 125
 
 st.divider()
 
@@ -74,6 +94,10 @@ if st.button("🔍 Calculate Risk", use_container_width=True):
     if not is_long and stop_loss <= entry_price:
         st.error("❌  Short position: stop loss must be above entry price.")
         st.stop()
+
+    # Warn user if leverage is dangerously high
+    if leverage >= 100:
+        st.warning(f"⚠️  You are using {leverage}x leverage. Liquidation is very close to your entry price.")
 
 
     # ── Core Calculations ────────────────────────────────────
