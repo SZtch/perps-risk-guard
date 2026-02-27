@@ -39,6 +39,10 @@ if "trade_history" not in st.session_state:
     st.session_state.trade_history = []
 if "trade_counter" not in st.session_state:
     st.session_state.trade_counter = 0
+if "portfolio" not in st.session_state:
+    st.session_state.portfolio = []
+if "portfolio_counter" not in st.session_state:
+    st.session_state.portfolio_counter = 0
 
 
 # ── Helper: Fetch Live Prices ─────────────────────────────────
@@ -343,7 +347,7 @@ st.title("⚡ Perps Risk Guard")
 st.caption("Know your risk before you enter the trade. Powered by Pacifica API.")
 st.divider()
 
-tab1, tab2, tab3 = st.tabs(["🔍  Calculator", "📊  Analytics", "🌐  Live Market"])
+tab1, tab2, tab3, tab4 = st.tabs(["🔍  Calculator", "📊  Analytics", "💼  Portfolio Risk", "🌐  Live Market"])
 
 
 # ═══════════════════════════════════════════════════════════
@@ -643,9 +647,284 @@ with tab2:
 
 
 # ═══════════════════════════════════════════════════════════
-#  TAB 3 — LIVE MARKET
+#  TAB 3 — PORTFOLIO RISK AGGREGATOR
 # ═══════════════════════════════════════════════════════════
 with tab3:
+
+    st.subheader("💼 Portfolio Risk Aggregator")
+    st.caption("Add multiple open positions and see your total exposure in one view.")
+
+    # ── Fetch prices for live defaults ──────────────────────
+    port_prices  = fetch_prices()
+    port_markets = fetch_markets()
+    port_symbols = sorted(port_prices.keys()) if port_prices else ["BTC", "ETH", "SOL"]
+
+    st.markdown("#### ➕ Add Position")
+
+    pc1, pc2, pc3, pc4 = st.columns(4)
+    with pc1:
+        p_symbol    = st.selectbox("Symbol", options=port_symbols, key="p_symbol")
+        p_direction = st.radio("Direction", ["Long 📈", "Short 📉"], horizontal=True, key="p_dir")
+    with pc2:
+        p_live      = port_prices.get(p_symbol, 0.0)
+        p_entry     = st.number_input("Entry Price ($)", min_value=0.01,
+                                      value=round(p_live, 2) if p_live > 0 else 100.0,
+                                      step=1.0, key="p_entry")
+        p_size      = st.number_input("Position Size ($)", min_value=1.0, value=5000.0,
+                                      step=100.0, key="p_size")
+    with pc3:
+        p_market    = port_markets.get(p_symbol, {})
+        p_max_lev   = float(p_market.get("max_leverage", 1000))
+        p_leverage  = st.number_input(f"Leverage (max {int(p_max_lev)}x)", min_value=1.0,
+                                       max_value=p_max_lev, value=5.0, step=1.0, key="p_lev")
+        p_sl        = st.number_input("Stop Loss ($)", min_value=0.01,
+                                      value=round(p_live * 0.95, 2) if p_live > 0 else 95.0,
+                                      step=1.0, key="p_sl")
+    with pc4:
+        p_balance   = st.number_input("Account Balance ($)", min_value=1.0, value=10000.0,
+                                       step=100.0, key="p_balance")
+        p_tp        = st.number_input("Take Profit ($)", min_value=0.01,
+                                      value=round(p_live * 1.10, 2) if p_live > 0 else 110.0,
+                                      step=1.0, key="p_tp")
+
+    if st.button("➕ Add to Portfolio", use_container_width=True, type="primary"):
+        p_is_long  = p_direction.startswith("Long")
+        p_sl_diff  = abs(p_entry - p_sl)
+        p_pct_sl   = (p_sl_diff / p_entry) * 100
+        p_risk_amt = (p_pct_sl / 100) * p_size
+        p_risk_pct = (p_risk_amt / p_balance) * 100
+
+        p_tp_diff  = abs(p_tp - p_entry)
+        p_pct_tp   = (p_tp_diff / p_entry) * 100
+        p_rew_amt  = (p_pct_tp / 100) * p_size
+
+        p_liq_drop = 100 / p_leverage
+        p_liq      = (p_entry * (1 - p_liq_drop / 100) if p_is_long
+                      else p_entry * (1 + p_liq_drop / 100))
+
+        p_rr       = p_rew_amt / p_risk_amt if p_risk_amt > 0 else 0
+        p_margin   = p_size / p_leverage
+
+        # Validate basics
+        err = None
+        if p_entry == p_sl:
+            err = "Entry and Stop Loss cannot be the same."
+        elif p_is_long and p_sl >= p_entry:
+            err = "Long: stop loss must be below entry."
+        elif not p_is_long and p_sl <= p_entry:
+            err = "Short: stop loss must be above entry."
+
+        if err:
+            st.error(f"❌ {err}")
+        else:
+            st.session_state.portfolio_counter += 1
+            st.session_state.portfolio.append({
+                "Pos #"       : f"#{st.session_state.portfolio_counter}",
+                "Symbol"      : p_symbol,
+                "Direction"   : "Long" if p_is_long else "Short",
+                "Entry"       : p_entry,
+                "Stop Loss"   : p_sl,
+                "Take Profit" : p_tp,
+                "Leverage"    : int(p_leverage),
+                "Size ($)"    : p_size,
+                "Margin ($)"  : round(p_margin, 2),
+                "Liq. Price"  : round(p_liq, 2),
+                "Risk ($)"    : round(p_risk_amt, 2),
+                "Risk %"      : round(p_risk_pct, 2),
+                "Reward ($)"  : round(p_rew_amt, 2),
+                "RR Ratio"    : round(p_rr, 2),
+            })
+            st.success(f"✅ {p_symbol} {'Long' if p_is_long else 'Short'} added to portfolio!")
+            st.rerun()
+
+    # ── Portfolio Table ──────────────────────────────────────
+    if len(st.session_state.portfolio) == 0:
+        st.info("📭 No positions yet. Add your first position above.")
+    else:
+        st.divider()
+        pdf = pd.DataFrame(st.session_state.portfolio)
+
+        st.subheader(f"📋 Open Positions ({len(pdf)})")
+        st.dataframe(pdf.set_index("Pos #"), use_container_width=True)
+
+        # ── Delete individual position ───────────────────────
+        del_options = [f"{r['Pos #']} — {r['Symbol']} {r['Direction']}" for _, r in pdf.iterrows()]
+        del_choice  = st.selectbox("Remove a position:", ["— select —"] + del_options, key="del_pos")
+        if st.button("🗑️ Remove Selected Position") and del_choice != "— select —":
+            pos_num = del_choice.split(" — ")[0]
+            st.session_state.portfolio = [p for p in st.session_state.portfolio if p["Pos #"] != pos_num]
+            st.rerun()
+
+        st.divider()
+
+        # ── Aggregate Metrics ────────────────────────────────
+        st.subheader("🧮 Portfolio-Level Risk Summary")
+
+        total_size       = pdf["Size ($)"].sum()
+        total_margin     = pdf["Margin ($)"].sum()
+        total_risk_usd   = pdf["Risk ($)"].sum()
+        total_reward_usd = pdf["Reward ($)"].sum()
+        p_balance_ref    = p_balance  # last entered balance as reference
+        total_risk_pct   = (total_risk_usd / p_balance_ref) * 100
+        portfolio_rr     = total_reward_usd / total_risk_usd if total_risk_usd > 0 else 0
+        avg_leverage     = (pdf["Leverage"] * pdf["Size ($)"]).sum() / total_size
+
+        m1, m2, m3, m4 = st.columns(4)
+        m1.metric("Total Exposure",    f"${total_size:,.2f}")
+        m2.metric("Total Margin Used", f"${total_margin:,.2f}")
+        m3.metric("Total Risk ($)",    f"${total_risk_usd:,.2f}")
+        m4.metric("Total Risk %",      f"{total_risk_pct:.2f}%",
+                  delta=f"{'🔴 HIGH' if total_risk_pct > 15 else '⚠️ MEDIUM' if total_risk_pct > 5 else '✅ SAFE'}")
+
+        n1, n2, n3 = st.columns(3)
+        n1.metric("Total Potential Reward", f"${total_reward_usd:,.2f}")
+        n2.metric("Portfolio RR Ratio",     f"1 : {portfolio_rr:.2f}")
+        n3.metric("Weighted Avg Leverage",  f"{avg_leverage:.1f}x")
+
+        # Portfolio health warning
+        if total_risk_pct > 15:
+            st.error(f"🔴 **DANGER** — Your combined positions risk **{total_risk_pct:.1f}%** of your balance. This is extremely high. Consider closing some positions.")
+        elif total_risk_pct > 5:
+            st.warning(f"⚠️ **CAUTION** — Combined risk is **{total_risk_pct:.1f}%** of your balance. Monitor your positions carefully.")
+        else:
+            st.success(f"✅ **HEALTHY** — Combined risk is **{total_risk_pct:.1f}%** of your balance. Well diversified.")
+
+        st.divider()
+
+        # ── Portfolio Charts ─────────────────────────────────
+        st.subheader("📊 Portfolio Visualizations")
+
+        ch_a, ch_b = st.columns(2)
+
+        with ch_a:
+            # Exposure by symbol (pie)
+            exp_by_sym = pdf.groupby("Symbol")["Size ($)"].sum().reset_index()
+            fig_pie = go.Figure(go.Pie(
+                labels=exp_by_sym["Symbol"],
+                values=exp_by_sym["Size ($)"],
+                hole=0.45,
+                textinfo="label+percent",
+                hovertemplate="<b>%{label}</b><br>$%{value:,.2f} (%{percent})<extra></extra>"
+            ))
+            fig_pie.update_layout(
+                title="Exposure by Symbol",
+                paper_bgcolor="#1a1d27", font_color="white",
+                height=300, margin=dict(t=50, b=10, l=10, r=10), showlegend=False
+            )
+            st.plotly_chart(fig_pie, use_container_width=True)
+
+        with ch_b:
+            # Long vs Short exposure
+            dir_exp = pdf.groupby("Direction")["Size ($)"].sum().reset_index()
+            dir_colors = ["#00d4aa" if d == "Long" else "#ff4b4b" for d in dir_exp["Direction"]]
+            fig_dir = go.Figure(go.Bar(
+                x=dir_exp["Direction"],
+                y=dir_exp["Size ($)"],
+                marker_color=dir_colors,
+                hovertemplate="<b>%{x}</b><br>$%{y:,.2f}<extra></extra>"
+            ))
+            fig_dir.update_layout(
+                title="Long vs Short Exposure",
+                paper_bgcolor="#1a1d27", plot_bgcolor="#0e1117", font_color="white",
+                height=300, margin=dict(t=50, b=10, l=10, r=10),
+                xaxis=dict(gridcolor="#2a2d3a"),
+                yaxis=dict(gridcolor="#2a2d3a", title="Size ($)"),
+                showlegend=False
+            )
+            st.plotly_chart(fig_dir, use_container_width=True)
+
+        # Risk per position bar chart
+        fig_risk = go.Figure()
+        fig_risk.add_trace(go.Bar(
+            x=pdf["Pos #"] + " " + pdf["Symbol"],
+            y=pdf["Risk ($)"],
+            name="Risk ($)",
+            marker_color="#ff6b6b",
+            hovertemplate="<b>%{x}</b><br>Risk: $%{y:,.2f}<extra></extra>"
+        ))
+        fig_risk.add_trace(go.Bar(
+            x=pdf["Pos #"] + " " + pdf["Symbol"],
+            y=pdf["Reward ($)"],
+            name="Reward ($)",
+            marker_color="#00d4aa",
+            hovertemplate="<b>%{x}</b><br>Reward: $%{y:,.2f}<extra></extra>"
+        ))
+        fig_risk.update_layout(
+            title="Risk vs Reward per Position",
+            barmode="group",
+            paper_bgcolor="#1a1d27", plot_bgcolor="#0e1117", font_color="white",
+            height=320, margin=dict(t=50, b=20, l=20, r=20),
+            xaxis=dict(gridcolor="#2a2d3a"),
+            yaxis=dict(gridcolor="#2a2d3a", title="Amount ($)"),
+            legend=dict(orientation="h", yanchor="bottom", y=1.02)
+        )
+        st.plotly_chart(fig_risk, use_container_width=True)
+
+        # Leverage per position
+        lev_colors = ["#ff4b4b" if l >= 20 else "#ffa500" if l >= 10 else "#00d4aa"
+                      for l in pdf["Leverage"]]
+        fig_lev = go.Figure(go.Bar(
+            x=pdf["Pos #"] + " " + pdf["Symbol"],
+            y=pdf["Leverage"],
+            marker_color=lev_colors,
+            hovertemplate="<b>%{x}</b><br>Leverage: %{y}x<extra></extra>"
+        ))
+        fig_lev.add_hline(y=10, line_dash="dot", line_color="#ffa500",
+                          annotation_text="10x", annotation_font_color="#ffa500")
+        fig_lev.add_hline(y=20, line_dash="dot", line_color="#ff4b4b",
+                          annotation_text="20x (high risk)", annotation_font_color="#ff4b4b")
+        fig_lev.update_layout(
+            title="Leverage per Position",
+            paper_bgcolor="#1a1d27", plot_bgcolor="#0e1117", font_color="white",
+            height=300, margin=dict(t=50, b=20, l=20, r=80),
+            xaxis=dict(gridcolor="#2a2d3a"),
+            yaxis=dict(gridcolor="#2a2d3a", title="Leverage (x)"),
+            showlegend=False
+        )
+        st.plotly_chart(fig_lev, use_container_width=True)
+
+        st.divider()
+
+        # ── Portfolio Correlation Warning ────────────────────
+        long_syms  = set(pdf[pdf["Direction"] == "Long"]["Symbol"].tolist())
+        short_syms = set(pdf[pdf["Direction"] == "Short"]["Symbol"].tolist())
+        overlap    = long_syms & short_syms
+
+        if overlap:
+            st.warning(f"⚠️ **Hedged Positions Detected** — You have both Long and Short on: {', '.join(overlap)}. Make sure this is intentional.")
+
+        num_symbols  = pdf["Symbol"].nunique()
+        num_long     = len(pdf[pdf["Direction"] == "Long"])
+        num_short    = len(pdf[pdf["Direction"] == "Short"])
+
+        insights_p = []
+        if num_symbols == 1 and len(pdf) > 1:
+            insights_p.append("📌 **Concentrated Risk** — All positions are in one symbol. Consider diversifying across assets.")
+        if num_long > 0 and num_short == 0:
+            insights_p.append("📌 **All Long** — Your portfolio has no short positions. If the market drops, all positions lose simultaneously.")
+        elif num_short > 0 and num_long == 0:
+            insights_p.append("📌 **All Short** — Your portfolio has no long positions. A market rally would impact all positions.")
+        if avg_leverage > 15:
+            insights_p.append(f"🔴 **High Avg Leverage ({avg_leverage:.1f}x)** — Your portfolio weighted leverage is dangerously high.")
+        if portfolio_rr >= 2:
+            insights_p.append(f"🟢 **Good Portfolio RR ({portfolio_rr:.1f}x)** — Your combined risk/reward ratio is favorable.")
+
+        if insights_p:
+            st.subheader("💡 Portfolio Insights")
+            for tip in insights_p:
+                st.markdown(f"- {tip}")
+
+        st.divider()
+        if st.button("🗑️ Clear All Positions", use_container_width=False):
+            st.session_state.portfolio = []
+            st.session_state.portfolio_counter = 0
+            st.rerun()
+
+
+# ═══════════════════════════════════════════════════════════
+#  TAB 4 — LIVE MARKET
+# ═══════════════════════════════════════════════════════════
+with tab4:
 
     st.subheader("🌐 Live Market Data")
     st.caption("Powered by Pacifica API — prices update on every page refresh.")
