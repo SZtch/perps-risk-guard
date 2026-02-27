@@ -1,12 +1,12 @@
 # ============================================================
 #  PERPS RISK GUARD
-#  Phase 3B — Pacifica API Integration
+#  Phase 3B — Pacifica API + UI Polish (Dark Blue Navy)
 #  Pacifica Hackathon | Analytics & Data Track
 # ============================================================
 
 import streamlit as st
 import pandas as pd
-import requests   # Built-in to Streamlit Cloud, no extra install needed
+import requests
 
 # ── Page Configuration ───────────────────────────────────────
 st.set_page_config(
@@ -14,6 +14,203 @@ st.set_page_config(
     page_icon="⚡",
     layout="centered"
 )
+
+# ── Custom CSS — Dark Blue Navy Theme ────────────────────────
+st.markdown("""
+<style>
+/* ── Google Font ── */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+/* ── Global Background & Font ── */
+html, body, [class*="css"] {
+    font-family: 'Inter', sans-serif;
+}
+
+.stApp {
+    background-color: #0a0f1e;
+    color: #e2e8f0;
+}
+
+/* ── Header Title ── */
+h1 {
+    color: #ffffff !important;
+    font-size: 2rem !important;
+    font-weight: 700 !important;
+    letter-spacing: -0.5px;
+}
+
+/* ── Subheaders ── */
+h2, h3 {
+    color: #93c5fd !important;
+    font-weight: 600 !important;
+}
+
+/* ── Caption / Small Text ── */
+.stCaption, small, caption {
+    color: #64748b !important;
+}
+
+/* ── Tabs ── */
+.stTabs [data-baseweb="tab-list"] {
+    background-color: #0f172a;
+    border-radius: 10px;
+    padding: 4px;
+    gap: 4px;
+}
+
+.stTabs [data-baseweb="tab"] {
+    background-color: transparent;
+    color: #64748b !important;
+    border-radius: 8px;
+    font-weight: 500;
+    padding: 8px 20px;
+}
+
+.stTabs [aria-selected="true"] {
+    background-color: #1e3a5f !important;
+    color: #93c5fd !important;
+    font-weight: 600 !important;
+}
+
+/* ── Input Fields ── */
+.stNumberInput input, .stSelectbox select, div[data-baseweb="select"] {
+    background-color: #0f172a !important;
+    color: #e2e8f0 !important;
+    border: 1px solid #1e3a5f !important;
+    border-radius: 8px !important;
+}
+
+.stNumberInput input:focus {
+    border-color: #3b82f6 !important;
+    box-shadow: 0 0 0 2px rgba(59,130,246,0.2) !important;
+}
+
+/* ── Input Labels ── */
+.stNumberInput label, .stSelectbox label, .stRadio label {
+    color: #94a3b8 !important;
+    font-size: 0.85rem !important;
+    font-weight: 500 !important;
+}
+
+/* ── Radio Buttons ── */
+.stRadio [data-testid="stMarkdownContainer"] p {
+    color: #e2e8f0 !important;
+}
+
+/* ── Calculate Button ── */
+.stButton > button {
+    background: linear-gradient(135deg, #1d4ed8, #2563eb) !important;
+    color: white !important;
+    border: none !important;
+    border-radius: 10px !important;
+    font-weight: 600 !important;
+    font-size: 1rem !important;
+    padding: 12px 24px !important;
+    transition: all 0.2s ease !important;
+    letter-spacing: 0.3px;
+}
+
+.stButton > button:hover {
+    background: linear-gradient(135deg, #1e40af, #1d4ed8) !important;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 15px rgba(37, 99, 235, 0.4) !important;
+}
+
+/* ── Metric Cards ── */
+[data-testid="stMetric"] {
+    background-color: #0f172a !important;
+    border: 1px solid #1e3a5f !important;
+    border-radius: 10px !important;
+    padding: 16px !important;
+}
+
+[data-testid="stMetricLabel"] {
+    color: #64748b !important;
+    font-size: 0.78rem !important;
+    font-weight: 500 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.5px !important;
+}
+
+[data-testid="stMetricValue"] {
+    color: #ffffff !important;
+    font-weight: 700 !important;
+    font-size: 1.4rem !important;
+}
+
+/* ── Divider ── */
+hr {
+    border-color: #1e3a5f !important;
+    margin: 1.5rem 0 !important;
+}
+
+/* ── Success / Warning / Error boxes ── */
+.stSuccess {
+    background-color: #052e16 !important;
+    border-left: 4px solid #22c55e !important;
+    color: #bbf7d0 !important;
+    border-radius: 8px !important;
+}
+
+.stWarning {
+    background-color: #1c1208 !important;
+    border-left: 4px solid #f59e0b !important;
+    color: #fde68a !important;
+    border-radius: 8px !important;
+}
+
+.stError {
+    background-color: #1c0a0a !important;
+    border-left: 4px solid #ef4444 !important;
+    color: #fecaca !important;
+    border-radius: 8px !important;
+}
+
+.stInfo {
+    background-color: #0c1a2e !important;
+    border-left: 4px solid #3b82f6 !important;
+    color: #bfdbfe !important;
+    border-radius: 8px !important;
+}
+
+/* ── Tables ── */
+thead tr th {
+    background-color: #0f172a !important;
+    color: #93c5fd !important;
+    font-weight: 600 !important;
+    font-size: 0.8rem !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.5px !important;
+    border-bottom: 1px solid #1e3a5f !important;
+}
+
+tbody tr td {
+    background-color: #0a0f1e !important;
+    color: #e2e8f0 !important;
+    border-bottom: 1px solid #1e293b !important;
+    font-size: 0.9rem !important;
+}
+
+tbody tr:hover td {
+    background-color: #0f172a !important;
+}
+
+/* ── Dataframe ── */
+.stDataFrame {
+    border: 1px solid #1e3a5f !important;
+    border-radius: 10px !important;
+    overflow: hidden !important;
+}
+
+/* ── Selectbox dropdown ── */
+div[data-baseweb="select"] > div {
+    background-color: #0f172a !important;
+    border-color: #1e3a5f !important;
+    color: #e2e8f0 !important;
+    border-radius: 8px !important;
+}
+</style>
+""", unsafe_allow_html=True)
 
 # ── Constants ────────────────────────────────────────────────
 PACIFICA_BASE_URL = "https://api.pacifica.fi/api/v1"
@@ -27,40 +224,27 @@ if "trade_counter" not in st.session_state:
     st.session_state.trade_counter = 0
 
 
-# ── Helper: Fetch Live Prices from Pacifica API ───────────────
+# ── Helper: Fetch Live Prices ─────────────────────────────────
 def fetch_prices():
-    """
-    Calls Pacifica public API to get live mark prices for all symbols.
-    Returns a dict like: { "BTC": 95000.0, "ETH": 3200.0, ... }
-    Returns empty dict if API call fails.
-    """
     try:
         response = requests.get(PRICES_ENDPOINT, timeout=5)
         data     = response.json()
-
         if data.get("success") and data.get("data"):
-            # Build a clean dict: symbol -> mark price (float)
             return {
                 item["symbol"]: float(item["mark"])
                 for item in data["data"]
                 if "symbol" in item and "mark" in item
             }
     except Exception:
-        pass  # If API fails, return empty dict silently
-
+        pass
     return {}
 
 
-# ── Helper: Fetch Market Info (for max leverage per symbol) ───
+# ── Helper: Fetch Market Info ─────────────────────────────────
 def fetch_markets():
-    """
-    Calls Pacifica public API to get market specs.
-    Returns a dict like: { "BTC": {"max_leverage": 50, ...}, ... }
-    """
     try:
         response = requests.get(MARKETS_ENDPOINT, timeout=5)
         data     = response.json()
-
         if data.get("success") and data.get("data"):
             return {
                 item["symbol"]: item
@@ -69,13 +253,27 @@ def fetch_markets():
             }
     except Exception:
         pass
-
     return {}
 
 
 # ── Header ───────────────────────────────────────────────────
-st.title("⚡ Perps Risk Guard")
-st.caption("Know your risk before you enter the trade.")
+st.markdown("""
+<div style="padding: 1.5rem 0 0.5rem 0;">
+    <div style="display:flex; align-items:center; gap:12px;">
+        <span style="font-size:2.2rem;">⚡</span>
+        <div>
+            <h1 style="margin:0; padding:0; font-size:2rem; font-weight:700; color:#ffffff;">
+                Perps Risk Guard
+            </h1>
+            <p style="margin:0; color:#64748b; font-size:0.9rem;">
+                Know your risk before you enter the trade &nbsp;·&nbsp;
+                <span style="color:#3b82f6;">Powered by Pacifica</span>
+            </p>
+        </div>
+    </div>
+</div>
+""", unsafe_allow_html=True)
+
 st.divider()
 
 # ── Tabs ─────────────────────────────────────────────────────
@@ -90,32 +288,25 @@ with tab1:
 
     st.subheader("① Trade Details")
 
-    # ── Fetch live prices on load ─────────────────────────────
     live_prices  = fetch_prices()
     live_markets = fetch_markets()
 
-    # List of available symbols from API, fallback to common ones
     available_symbols = sorted(live_prices.keys()) if live_prices else ["BTC", "ETH", "SOL"]
 
-    # Symbol selector
     selected_symbol = st.selectbox(
         "Select Symbol",
         options=available_symbols,
         index=available_symbols.index("BTC") if "BTC" in available_symbols else 0
     )
 
-    # Get live price for selected symbol
-    live_price = live_prices.get(selected_symbol, 0.0)
+    live_price   = live_prices.get(selected_symbol, 0.0)
+    market_info  = live_markets.get(selected_symbol, {})
+    max_leverage = float(market_info.get("max_leverage", 1000))
 
-    # Show live price badge
     if live_price > 0:
         st.success(f"🟢  Live {selected_symbol} Mark Price: **${live_price:,.2f}**  *(from Pacifica API)*")
     else:
         st.warning("⚠️  Could not fetch live price. Please enter entry price manually.")
-
-    # Get max leverage for selected symbol from market info
-    market_info  = live_markets.get(selected_symbol, {})
-    max_leverage = float(market_info.get("max_leverage", 1000))
 
     st.write("")
 
@@ -131,63 +322,43 @@ with tab1:
     col1, col2, col3 = st.columns(3)
 
     with col1:
-        balance       = st.number_input("Account Balance ($)",   min_value=1.0,    value=1000.0,   step=100.0)
-        stop_loss     = st.number_input("Stop Loss Price ($)",    min_value=0.01,   value=round(live_price * 0.95, 2) if live_price > 0 else 95.0, step=1.0)
+        balance       = st.number_input("Account Balance ($)",   min_value=1.0,  value=1000.0,  step=100.0)
+        stop_loss     = st.number_input("Stop Loss Price ($)",    min_value=0.01, value=round(live_price * 0.95, 2) if live_price > 0 else 95.0,  step=1.0)
 
     with col2:
-        position_size = st.number_input("Position Size ($)",      min_value=1.0,    value=5000.0,   step=100.0)
-        take_profit   = st.number_input("Take Profit Price ($)",  min_value=0.01,   value=round(live_price * 1.10, 2) if live_price > 0 else 110.0, step=1.0)
+        position_size = st.number_input("Position Size ($)",      min_value=1.0,  value=5000.0,  step=100.0)
+        take_profit   = st.number_input("Take Profit Price ($)",  min_value=0.01, value=round(live_price * 1.10, 2) if live_price > 0 else 110.0, step=1.0)
 
     with col3:
-        # Entry price defaults to live mark price
-        entry_price   = st.number_input(
-            "Entry Price ($)",
-            min_value=0.01,
-            value=round(live_price, 2) if live_price > 0 else 100.0,
-            step=1.0
-        )
-        leverage      = st.number_input(
-            f"Leverage (max {int(max_leverage)}x)",
-            min_value=1.0,
-            max_value=max_leverage,
-            value=5.0,
-            step=1.0
-        )
+        entry_price   = st.number_input("Entry Price ($)",        min_value=0.01, value=round(live_price, 2) if live_price > 0 else 100.0, step=1.0)
+        leverage      = st.number_input(f"Leverage (max {int(max_leverage)}x)", min_value=1.0, max_value=max_leverage, value=5.0, step=1.0)
 
     st.divider()
 
-    # ── Calculate Button ──────────────────────────────────────
-    if st.button("🔍 Calculate Risk", use_container_width=True):
+    if st.button("🔍  Calculate Risk", use_container_width=True):
 
         # ── Validation ───────────────────────────────────────
         if entry_price == stop_loss:
             st.error("❌  Entry price and stop loss cannot be the same.")
             st.stop()
-
         if entry_price == take_profit:
             st.error("❌  Entry price and take profit cannot be the same.")
             st.stop()
-
         if position_size > balance * leverage:
             st.error("❌  Position size exceeds your balance × leverage limit.")
             st.stop()
-
         if is_long and stop_loss >= entry_price:
             st.error("❌  Long position: stop loss must be below entry price.")
             st.stop()
-
         if is_long and take_profit <= entry_price:
             st.error("❌  Long position: take profit must be above entry price.")
             st.stop()
-
         if not is_long and stop_loss <= entry_price:
             st.error("❌  Short position: stop loss must be above entry price.")
             st.stop()
-
         if not is_long and take_profit >= entry_price:
             st.error("❌  Short position: take profit must be below entry price.")
             st.stop()
-
         if leverage >= 100:
             st.warning(f"⚠️  You are using {int(leverage)}x leverage. Liquidation price is very close to entry.")
 
@@ -196,28 +367,22 @@ with tab1:
         pct_to_sl           = (sl_diff / entry_price) * 100
         risk_amount         = (pct_to_sl / 100) * position_size
         risk_pct            = (risk_amount / balance) * 100
-
         tp_diff             = abs(take_profit - entry_price)
         pct_to_tp           = (tp_diff / entry_price) * 100
         reward_amount       = (pct_to_tp / 100) * position_size
-
         rr_ratio            = reward_amount / risk_amount
         capital_utilization = position_size / balance
         margin_used         = position_size / leverage
         effective_leverage  = position_size / margin_used
-
-        liq_drop  = 100 / leverage
-        liq_price = (
+        liq_drop            = 100 / leverage
+        liq_price           = (
             entry_price * (1 - liq_drop / 100) if is_long
             else entry_price * (1 + liq_drop / 100)
         )
 
-        if risk_pct < 5:
-            risk_label = "SAFE"
-        elif risk_pct <= 15:
-            risk_label = "MEDIUM RISK"
-        else:
-            risk_label = "HIGH RISK"
+        if risk_pct < 5:       risk_label = "SAFE"
+        elif risk_pct <= 15:   risk_label = "MEDIUM RISK"
+        else:                  risk_label = "HIGH RISK"
 
         # ── Save to Trade History ─────────────────────────────
         st.session_state.trade_counter += 1
@@ -294,17 +459,16 @@ with tab1:
         st.subheader("④ Adverse Move Simulation")
 
         move_label = "falls" if is_long else "rises"
-        st.caption(f"What happens if {selected_symbol} price {move_label} against your {'Long' if is_long else 'Short'} position?")
+        st.caption(
+            f"What happens if {selected_symbol} price {move_label} against your "
+            f"{'Long' if is_long else 'Short'} position?"
+        )
 
         rows = []
         for pct in [1, 2, 3]:
-            new_price = (
-                entry_price * (1 - pct / 100) if is_long
-                else entry_price * (1 + pct / 100)
-            )
+            new_price   = entry_price * (1 - pct / 100) if is_long else entry_price * (1 + pct / 100)
             pnl         = -1 * (pct / 100) * position_size
             new_balance = balance + pnl
-
             rows.append({
                 "Adverse Move"      : f"-{pct}%",
                 "New Price"         : f"${new_price:,.2f}",
@@ -333,7 +497,6 @@ with tab2:
     else:
         df = pd.DataFrame(st.session_state.trade_history)
 
-        # Backfill missing columns from older sessions
         if "Symbol" not in df.columns:
             df["Symbol"] = "-"
 
@@ -365,17 +528,17 @@ with tab2:
         high_count   = len(df[df["Classification"] == "HIGH RISK"])
 
         a1, a2, a3, a4 = st.columns(4)
-        a1.metric("Total Trades",      total_trades)
-        a2.metric("Avg Risk %",        f"{avg_risk_pct:.2f}%")
-        a3.metric("Avg RR Ratio",      f"1 : {avg_rr:.2f}")
-        a4.metric("Best RR Ratio",     f"1 : {best_rr:.2f}")
+        a1.metric("Total Trades",     total_trades)
+        a2.metric("Avg Risk %",       f"{avg_risk_pct:.2f}%")
+        a3.metric("Avg RR Ratio",     f"1 : {avg_rr:.2f}")
+        a4.metric("Best RR Ratio",    f"1 : {best_rr:.2f}")
 
         st.write("")
 
         b1, b2, b3 = st.columns(3)
-        b1.metric("✅  Safe Trades",       safe_count)
-        b2.metric("⚠️  Medium Trades",     medium_count)
-        b3.metric("🔴  High Risk Trades",  high_count)
+        b1.metric("✅  Safe Trades",      safe_count)
+        b2.metric("⚠️  Medium Trades",    medium_count)
+        b3.metric("🔴  High Risk Trades", high_count)
 
         st.divider()
 
@@ -404,7 +567,7 @@ with tab2:
 
 
 # ════════════════════════════════════════════════════════════
-#  TAB 3 — LIVE MARKET (Pacifica API)
+#  TAB 3 — LIVE MARKET
 # ════════════════════════════════════════════════════════════
 
 with tab3:
@@ -412,11 +575,9 @@ with tab3:
     st.subheader("🌐 Live Market Data")
     st.caption("Powered by Pacifica API — prices update on every page refresh.")
 
-    # Refresh button
     if st.button("🔄  Refresh Prices", use_container_width=False):
         st.rerun()
 
-    # Fetch fresh data
     prices  = fetch_prices()
     markets = fetch_markets()
 
@@ -424,17 +585,16 @@ with tab3:
         st.error("❌  Could not connect to Pacifica API. Please try refreshing.")
 
     else:
-        # Build a combined market table
         market_rows = []
         for symbol, mark_price in sorted(prices.items()):
             market_data = markets.get(symbol, {})
             market_rows.append({
-                "Symbol"        : symbol,
-                "Mark Price"    : f"${mark_price:,.4f}",
-                "Max Leverage"  : f"{market_data.get('max_leverage', '-')}x",
-                "Funding Rate"  : f"{float(market_data.get('funding_rate', 0)) * 100:.4f}%",
-                "Min Order"     : f"${market_data.get('min_order_size', '-')}",
-                "Max Order"     : f"${market_data.get('max_order_size', '-')}",
+                "Symbol"       : symbol,
+                "Mark Price"   : f"${mark_price:,.4f}",
+                "Max Leverage" : f"{market_data.get('max_leverage', '-')}x",
+                "Funding Rate" : f"{float(market_data.get('funding_rate', 0)) * 100:.4f}%",
+                "Min Order"    : f"${market_data.get('min_order_size', '-')}",
+                "Max Order"    : f"${market_data.get('max_order_size', '-')}",
             })
 
         st.dataframe(
