@@ -32,41 +32,51 @@ direction = st.radio(
     horizontal=True
 )
 
-# Extract "Long" or "Short" without the emoji
 is_long = direction.startswith("Long")
 
 st.write("")
 
+# ── Input Fields (2 columns) ─────────────────────────────────
 left, right = st.columns(2)
 
 with left:
     balance       = st.number_input("Account Balance ($)",  min_value=1.0,  value=1000.0, step=100.0)
     entry_price   = st.number_input("Entry Price ($)",       min_value=0.01, value=100.0,  step=1.0)
-    leverage      = st.number_input("Leverage",              min_value=1.0,  max_value=1000.0, value=5.0, step=1.0)
 
 with right:
     position_size = st.number_input("Position Size ($)",     min_value=1.0,  value=5000.0, step=100.0)
     stop_loss     = st.number_input("Stop Loss Price ($)",   min_value=0.01, value=95.0,   step=1.0)
 
-# Leverage slider — lets user quickly pick from 1x to 1000x
-# This overrides the number_input above when moved
+st.write("")
+
+# ── Leverage — Single slider only (1x to 1000x) ──────────────
+# Using session_state so quick-select buttons can update the slider
+if "leverage" not in st.session_state:
+    st.session_state.leverage = 5
+
+st.write("**Leverage**")
+
+# Quick select buttons — clicking these updates session_state
+b1, b2, b3, b4, b5, b6, b7 = st.columns(7)
+if b1.button("5x"):   st.session_state.leverage = 5
+if b2.button("10x"):  st.session_state.leverage = 10
+if b3.button("20x"):  st.session_state.leverage = 20
+if b4.button("50x"):  st.session_state.leverage = 50
+if b5.button("100x"): st.session_state.leverage = 100
+if b6.button("125x"): st.session_state.leverage = 125
+if b7.button("500x"): st.session_state.leverage = 500
+
+# Single slider — reads from and writes to session_state
 leverage = st.slider(
-    "Leverage (drag or type above)",
+    "Drag to set leverage (1x – 1000x)",
     min_value=1,
     max_value=1000,
-    value=int(leverage),   # sync with the number_input value
+    value=st.session_state.leverage,
     step=1
 )
 
-# Quick preset buttons for common leverage values
-st.caption("Quick select:")
-q1, q2, q3, q4, q5, q6 = st.columns(6)
-if q1.button("5x"):   leverage = 5
-if q2.button("10x"):  leverage = 10
-if q3.button("20x"):  leverage = 20
-if q4.button("50x"):  leverage = 50
-if q5.button("100x"): leverage = 100
-if q6.button("125x"): leverage = 125
+# Keep session_state in sync with slider
+st.session_state.leverage = leverage
 
 st.divider()
 
@@ -95,14 +105,14 @@ if st.button("🔍 Calculate Risk", use_container_width=True):
         st.error("❌  Short position: stop loss must be above entry price.")
         st.stop()
 
-    # Warn user if leverage is dangerously high
+    # Warn if leverage is dangerously high
     if leverage >= 100:
-        st.warning(f"⚠️  You are using {leverage}x leverage. Liquidation is very close to your entry price.")
+        st.warning(f"⚠️  You are using {leverage}x leverage. Liquidation price is very close to entry.")
 
 
-    # ── Core Calculations ────────────────────────────────────
+    # ── Calculations ─────────────────────────────────────────
 
-    # Price gap between entry and stop loss
+    # Absolute price gap between entry and stop loss
     price_diff     = abs(entry_price - stop_loss)
 
     # Percentage move required to hit stop loss
@@ -114,13 +124,13 @@ if st.button("🔍 Calculate Risk", use_container_width=True):
     # Risk as a share of total account balance
     risk_pct       = (risk_amount / balance) * 100
 
-    # Ratio of position size to account balance
+    # How many times larger position is vs balance
     exposure_ratio = position_size / balance
 
-    # Estimated liquidation price (simplified)
+    # Estimated liquidation price
     # Long:  liquidated when price falls (100 / leverage)% from entry
     # Short: liquidated when price rises (100 / leverage)% from entry
-    liq_drop = 100 / leverage
+    liq_drop  = 100 / leverage
     liq_price = (
         entry_price * (1 - liq_drop / 100) if is_long
         else entry_price * (1 + liq_drop / 100)
@@ -136,17 +146,17 @@ if st.button("🔍 Calculate Risk", use_container_width=True):
 
     # Row 1: Core risk metrics
     c1, c2, c3 = st.columns(3)
-    c1.metric("Risk Amount",          f"${round(risk_amount, 2)}")
-    c2.metric("Risk % of Balance",    f"{round(risk_pct, 2)}%")
-    c3.metric("Exposure Ratio",       f"{round(exposure_ratio, 2)}x")
+    c1.metric("Risk Amount",          f"${risk_amount:,.2f}")
+    c2.metric("Risk % of Balance",    f"{risk_pct:.2f}%")
+    c3.metric("Exposure Ratio",       f"{exposure_ratio:.2f}x")
 
     st.write("")
 
     # Row 2: Price metrics
     p1, p2, p3 = st.columns(3)
-    p1.metric("Price to Stop Loss",   f"${round(price_diff, 4)}")
-    p2.metric("% Move to Stop Loss",  f"{round(pct_to_sl, 2)}%")
-    p3.metric("Est. Liquidation",     f"${round(liq_price, 2)}")
+    p1.metric("Price to Stop Loss",   f"${price_diff:,.4f}")
+    p2.metric("% Move to Stop Loss",  f"{pct_to_sl:.2f}%")
+    p3.metric("Est. Liquidation",     f"${liq_price:,.2f}")
 
     st.divider()
 
@@ -174,29 +184,38 @@ if st.button("🔍 Calculate Risk", use_container_width=True):
     st.subheader("④ Adverse Move Simulation")
 
     move_label = "falls" if is_long else "rises"
-    st.caption(f"What happens if price {move_label} against your {direction_label.split()[0]} position?")
+    st.caption(
+        f"What happens if price {move_label} against your "
+        f"{'Long' if is_long else 'Short'} position?"
+    )
 
+    # Build table rows — hide index by using st.dataframe with hide_index
     rows = []
     for pct in [1, 2, 3]:
 
-        # Simulate new price after adverse move
+        # New price after adverse move
         new_price = (
             entry_price * (1 - pct / 100) if is_long
             else entry_price * (1 + pct / 100)
         )
 
-        # Estimated loss and remaining balance
         pnl         = -1 * (pct / 100) * position_size
         new_balance = balance + pnl
 
         rows.append({
             "Adverse Move"      : f"-{pct}%",
-            "New Price"         : f"${round(new_price, 4)}",
-            "Estimated Loss"    : f"-${abs(round(pnl, 2))}",
-            "Remaining Balance" : f"${round(new_balance, 2)}"
+            "New Price"         : f"${new_price:,.4f}",
+            "Estimated Loss"    : f"-${abs(pnl):,.2f}",
+            "Remaining Balance" : f"${new_balance:,.2f}"
         })
 
-    st.table(rows)
+    # Use dataframe with hide_index=True to remove the 0,1,2 index column
+    import pandas as pd
+    st.dataframe(
+        pd.DataFrame(rows),
+        hide_index=True,
+        use_container_width=True
+    )
 
     st.divider()
     st.info("💡 Discipline in risk management is the key to surviving the market.")
