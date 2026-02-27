@@ -120,10 +120,10 @@ if st.button("🔍 Calculate Risk", use_container_width=True):
     capital_utilization = position_size / balance
 
     # Effective Leverage: your actual leveraged exposure
-    # margin_used = how much of your balance is locked as margin
-    # Example: $5,000 position at 25x leverage → margin = $5,000 / 25 = $200
-    # Effective leverage = $5,000 / $200 = 25.00x
-    margin_used        = balance / leverage
+    # margin_used = collateral locked for this position = position_size / leverage
+    # Example: $5,000 position at 100x leverage → margin = $5,000 / 100 = $50
+    # Effective leverage = $5,000 / $50 = 100x ✅
+    margin_used        = position_size / leverage
     effective_leverage = position_size / margin_used
 
     # --- Liquidation Price ---
@@ -165,7 +165,6 @@ if st.button("🔍 Calculate Risk", use_container_width=True):
     e2.metric("Effective Leverage",   f"{effective_leverage:.2f}x")
     e3.metric("Margin Used",          f"${margin_used:,.2f}")
 
-    # Explain the difference between the two exposure metrics
     st.caption(
         f"📌  **Capital Utilization {capital_utilization:.2f}x** — "
         f"your position is {capital_utilization:.2f}x your total balance.   "
