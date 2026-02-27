@@ -1,113 +1,172 @@
 # ============================================================
-# PERPS RISK GUARD - Phase 1: Risk Engine (Terminal Version)
+# PERPS RISK GUARD - Phase 2: Streamlit Web App
 # Pacifica Hackathon | Analytics & Data Track
 # ============================================================
 
-# ----------------------------------------------------------
-# SECTION 1: GET INPUTS FROM THE USER
-# ----------------------------------------------------------
-
-print("=" * 50)
-print("   PERPS RISK GUARD - Risk Engine v1.0")
-print("=" * 50)
-print()
-
-# Ask the user to type in their trade details
-# float() converts the typed text into a decimal number
-
-balance = float(input("Enter your account balance ($): "))
-position_size = float(input("Enter your position size ($): "))
-entry_price = float(input("Enter your entry price ($): "))
-stop_loss_price = float(input("Enter your stop loss price ($): "))
-leverage = float(input("Enter your leverage (e.g. 5 for 5x): "))
-
-print()  # Print a blank line for spacing
+import streamlit as st
 
 # ----------------------------------------------------------
-# SECTION 2: CALCULATIONS
+# PAGE CONFIG - Harus di baris paling atas
 # ----------------------------------------------------------
 
-# A) Price difference between entry and stop loss
-#    abs() makes sure the result is always positive,
-#    whether the stop loss is above or below entry
-price_difference = abs(entry_price - stop_loss_price)
-
-# B) Percentage move from entry to stop loss
-#    Example: entry=100, stop=95 → (5/100)*100 = 5%
-percent_move = (price_difference / entry_price) * 100
-
-# C) Risk amount in dollars
-#    How many dollars you would LOSE if price hits stop loss
-#    The percent_move tells us how much the price moves,
-#    and we apply that to the full position size
-risk_amount = (percent_move / 100) * position_size
-
-# D) Risk percentage relative to account balance
-#    How big is your loss compared to your total balance?
-#    Example: lose $200 on a $1000 account = 20% risk
-risk_percentage = (risk_amount / balance) * 100
-
-# E) Effective exposure ratio
-#    How much bigger is your position than your balance?
-#    Example: $5000 position on $1000 balance = 5.0x exposure
-exposure_ratio = position_size / balance
+st.set_page_config(
+    page_title="Perps Risk Guard",
+    page_icon="⚡",
+    layout="centered"
+)
 
 # ----------------------------------------------------------
-# SECTION 3: RISK CLASSIFICATION
+# TITLE & DESCRIPTION
 # ----------------------------------------------------------
 
-# Check the risk percentage and assign a label
-if risk_percentage < 5:
-    risk_label = "✅ SAFE"
-elif risk_percentage <= 15:
-    risk_label = "⚠️  MEDIUM RISK"
-else:
-    risk_label = "🔴 HIGH RISK"
+st.title("⚡ Perps Risk Guard")
+st.write("Hitung risiko trading kamu sebelum masuk posisi.")
+st.write("---")
 
 # ----------------------------------------------------------
-# SECTION 4: PRINT THE RESULTS
+# SECTION 1: INPUT FIELDS
 # ----------------------------------------------------------
 
-print("=" * 50)
-print("         RISK ANALYSIS RESULTS")
-print("=" * 50)
+st.subheader("📥 Masukkan Detail Trade")
 
-# round() limits decimal places so output looks clean
-print(f"Price Difference:    ${round(price_difference, 4)}")
-print(f"% Move to Stop Loss: {round(percent_move, 2)}%")
-print(f"Risk Amount:         ${round(risk_amount, 2)}")
-print(f"Risk % of Balance:   {round(risk_percentage, 2)}%")
-print(f"Exposure Ratio:      {round(exposure_ratio, 2)}x")
-print()
-print(f"Risk Classification: {risk_label}")
+balance = st.number_input(
+    "Account Balance ($)",
+    min_value=1.0,
+    value=1000.0,
+    step=100.0
+)
+
+position_size = st.number_input(
+    "Position Size ($)",
+    min_value=1.0,
+    value=5000.0,
+    step=100.0
+)
+
+entry_price = st.number_input(
+    "Entry Price ($)",
+    min_value=0.01,
+    value=100.0,
+    step=1.0
+)
+
+stop_loss_price = st.number_input(
+    "Stop Loss Price ($)",
+    min_value=0.01,
+    value=95.0,
+    step=1.0
+)
+
+leverage = st.number_input(
+    "Leverage (contoh: 5 untuk 5x)",
+    min_value=1.0,
+    value=5.0,
+    step=1.0
+)
+
+st.write("---")
 
 # ----------------------------------------------------------
-# SECTION 5: ADVERSE MOVE SIMULATION
+# SECTION 2: TOMBOL HITUNG
 # ----------------------------------------------------------
-# This simulates what happens if the price moves AGAINST you
-# by 1%, 2%, or 3% from your entry price.
 
-print()
-print("=" * 50)
-print("     ADVERSE MOVE SIMULATION")
-print("=" * 50)
-print(f"{'Move':<10} {'Est. PnL':<15} {'New Balance'}")
-print("-" * 45)
+if st.button("🔍 Hitung Risiko"):
 
-# We loop through 3 scenarios: 1%, 2%, 3% adverse move
-for move_pct in [1, 2, 3]:
+    # Validasi: stop loss tidak boleh sama dengan entry
+    if entry_price == stop_loss_price:
+        st.error("❌ Entry price dan stop loss price tidak boleh sama!")
 
-    # Calculate how much money is lost for this move size
-    # A 1% adverse move on your position = 1% of position_size lost
-    estimated_pnl = -1 * (move_pct / 100) * position_size
+    # Validasi: position size tidak boleh lebih besar dari balance x leverage
+    elif position_size > balance * leverage:
+        st.error("❌ Position size terlalu besar untuk balance dan leverage yang kamu masukkan.")
 
-    # New balance = old balance + the PnL (which is negative = a loss)
-    new_balance = balance + estimated_pnl
+    else:
 
-    # Print the row, formatted neatly
-    print(f"-{move_pct}%{'':<8} -${abs(round(estimated_pnl, 2)):<13} ${round(new_balance, 2)}")
+        # ------------------------------------------------------
+        # KALKULASI
+        # ------------------------------------------------------
 
-print("=" * 50)
-print()
-print("Analysis complete. Stay disciplined. Manage your risk.")
-print()
+        # A) Selisih harga entry dan stop loss
+        price_difference = abs(entry_price - stop_loss_price)
+
+        # B) Persentase pergerakan ke stop loss
+        percent_move = (price_difference / entry_price) * 100
+
+        # C) Jumlah uang yang berisiko (dalam dolar)
+        risk_amount = (percent_move / 100) * position_size
+
+        # D) Persentase risiko terhadap balance
+        risk_percentage = (risk_amount / balance) * 100
+
+        # E) Rasio exposure
+        exposure_ratio = position_size / balance
+
+        # ------------------------------------------------------
+        # TAMPILKAN HASIL
+        # ------------------------------------------------------
+
+        st.subheader("📊 Hasil Analisis Risiko")
+
+        # Tampilkan 3 metrik utama dalam 3 kolom
+        col1, col2, col3 = st.columns(3)
+
+        with col1:
+            st.metric("Risk Amount", f"${round(risk_amount, 2)}")
+
+        with col2:
+            st.metric("Risk % of Balance", f"{round(risk_percentage, 2)}%")
+
+        with col3:
+            st.metric("Exposure Ratio", f"{round(exposure_ratio, 2)}x")
+
+        # Info tambahan
+        st.write(f"**Selisih Harga:** ${round(price_difference, 4)}")
+        st.write(f"**% Gerak ke Stop Loss:** {round(percent_move, 2)}%")
+        st.write(f"**Leverage Dipakai:** {leverage}x")
+
+        st.write("---")
+
+        # ------------------------------------------------------
+        # SECTION 3: KLASIFIKASI RISIKO
+        # ------------------------------------------------------
+
+        st.subheader("🚦 Klasifikasi Risiko")
+
+        if risk_percentage < 5:
+            st.success("✅ SAFE — Risiko kamu masih dalam batas sehat.")
+        elif risk_percentage <= 15:
+            st.warning("⚠️ MEDIUM RISK — Pertimbangkan untuk kurangi position size.")
+        else:
+            st.error("🔴 HIGH RISK — Trade ini mempertaruhkan terlalu banyak dari balance kamu!")
+
+        st.write("---")
+
+        # ------------------------------------------------------
+        # SECTION 4: SIMULASI ADVERSE MOVE
+        # ------------------------------------------------------
+
+        st.subheader("📉 Simulasi Pergerakan Negatif")
+        st.write("Apa yang terjadi jika harga bergerak melawan posisi kamu?")
+
+        # Buat data simulasi untuk ditampilkan sebagai tabel
+        simulation_data = []
+
+        for move_pct in [1, 2, 3]:
+            # Kerugian estimasi untuk pergerakan sebesar move_pct%
+            estimated_pnl = -1 * (move_pct / 100) * position_size
+
+            # Balance baru setelah kerugian
+            new_balance = balance + estimated_pnl
+
+            # Tambahkan baris ke data simulasi
+            simulation_data.append({
+                "Pergerakan Negatif": f"-{move_pct}%",
+                "Estimasi PnL ($)": f"-${abs(round(estimated_pnl, 2))}",
+                "Balance Baru ($)": f"${round(new_balance, 2)}"
+            })
+
+        # Tampilkan tabel simulasi
+        st.table(simulation_data)
+
+        st.write("---")
+        st.info("💡 Disiplin dalam manajemen risiko adalah kunci survival di pasar.")
