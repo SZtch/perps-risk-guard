@@ -5,6 +5,7 @@
 # ============================================================
 
 import streamlit as st
+import pandas as pd
 
 # ── Page Configuration ───────────────────────────────────────
 st.set_page_config(
@@ -36,47 +37,20 @@ is_long = direction.startswith("Long")
 
 st.write("")
 
-# ── Input Fields (2 columns) ─────────────────────────────────
-left, right = st.columns(2)
+# ── Input Fields (3 columns x 2 rows) ────────────────────────
+col1, col2, col3 = st.columns(3)
 
-with left:
-    balance       = st.number_input("Account Balance ($)",  min_value=1.0,  value=1000.0, step=100.0)
-    entry_price   = st.number_input("Entry Price ($)",       min_value=0.01, value=100.0,  step=1.0)
+with col1:
+    balance       = st.number_input("Account Balance ($)",  min_value=1.0,    value=1000.0,  step=100.0)
+    stop_loss     = st.number_input("Stop Loss Price ($)",   min_value=0.01,   value=95.0,    step=1.0)
 
-with right:
-    position_size = st.number_input("Position Size ($)",     min_value=1.0,  value=5000.0, step=100.0)
-    stop_loss     = st.number_input("Stop Loss Price ($)",   min_value=0.01, value=95.0,   step=1.0)
+with col2:
+    position_size = st.number_input("Position Size ($)",     min_value=1.0,    value=5000.0,  step=100.0)
+    take_profit   = st.number_input("Take Profit Price ($)", min_value=0.01,   value=110.0,   step=1.0)
 
-st.write("")
-
-# ── Leverage — Single slider only (1x to 1000x) ──────────────
-# Using session_state so quick-select buttons can update the slider
-if "leverage" not in st.session_state:
-    st.session_state.leverage = 5
-
-st.write("**Leverage**")
-
-# Quick select buttons — clicking these updates session_state
-b1, b2, b3, b4, b5, b6, b7 = st.columns(7)
-if b1.button("5x"):   st.session_state.leverage = 5
-if b2.button("10x"):  st.session_state.leverage = 10
-if b3.button("20x"):  st.session_state.leverage = 20
-if b4.button("50x"):  st.session_state.leverage = 50
-if b5.button("100x"): st.session_state.leverage = 100
-if b6.button("125x"): st.session_state.leverage = 125
-if b7.button("500x"): st.session_state.leverage = 500
-
-# Single slider — reads from and writes to session_state
-leverage = st.slider(
-    "Drag to set leverage (1x – 1000x)",
-    min_value=1,
-    max_value=1000,
-    value=st.session_state.leverage,
-    step=1
-)
-
-# Keep session_state in sync with slider
-st.session_state.leverage = leverage
+with col3:
+    entry_price   = st.number_input("Entry Price ($)",       min_value=0.01,   value=100.0,   step=1.0)
+    leverage      = st.number_input("Leverage",              min_value=1.0,    max_value=1000.0, value=5.0, step=1.0)
 
 st.divider()
 
@@ -93,6 +67,10 @@ if st.button("🔍 Calculate Risk", use_container_width=True):
         st.error("❌  Entry price and stop loss cannot be the same.")
         st.stop()
 
+    if entry_price == take_profit:
+        st.error("❌  Entry price and take profit cannot be the same.")
+        st.stop()
+
     if position_size > balance * leverage:
         st.error("❌  Position size exceeds your balance × leverage limit.")
         st.stop()
@@ -101,35 +79,61 @@ if st.button("🔍 Calculate Risk", use_container_width=True):
         st.error("❌  Long position: stop loss must be below entry price.")
         st.stop()
 
+    if is_long and take_profit <= entry_price:
+        st.error("❌  Long position: take profit must be above entry price.")
+        st.stop()
+
     if not is_long and stop_loss <= entry_price:
         st.error("❌  Short position: stop loss must be above entry price.")
         st.stop()
 
+    if not is_long and take_profit >= entry_price:
+        st.error("❌  Short position: take profit must be below entry price.")
+        st.stop()
+
     # Warn if leverage is dangerously high
     if leverage >= 100:
-        st.warning(f"⚠️  You are using {leverage}x leverage. Liquidation price is very close to entry.")
+        st.warning(f"⚠️  You are using {int(leverage)}x leverage. Liquidation price is very close to entry.")
 
 
     # ── Calculations ─────────────────────────────────────────
 
-    # Absolute price gap between entry and stop loss
-    price_diff     = abs(entry_price - stop_loss)
+    # --- Risk (Stop Loss side) ---
 
-    # Percentage move required to hit stop loss
-    pct_to_sl      = (price_diff / entry_price) * 100
+    # Price gap from entry to stop loss
+    sl_diff    = abs(entry_price - stop_loss)
 
-    # Dollar amount at risk if stop loss is triggered
-    risk_amount    = (pct_to_sl / 100) * position_size
+    # Percentage move to hit stop loss
+    pct_to_sl  = (sl_diff / entry_price) * 100
 
-    # Risk as a share of total account balance
-    risk_pct       = (risk_amount / balance) * 100
+    # Dollar amount lost if stop loss is hit
+    risk_amount = (pct_to_sl / 100) * position_size
 
-    # How many times larger position is vs balance
+    # Risk as a percentage of total balance
+    risk_pct    = (risk_amount / balance) * 100
+
+    # --- Reward (Take Profit side) ---
+
+    # Price gap from entry to take profit
+    tp_diff     = abs(take_profit - entry_price)
+
+    # Percentage move to hit take profit
+    pct_to_tp   = (tp_diff / entry_price) * 100
+
+    # Dollar amount gained if take profit is hit
+    reward_amount = (pct_to_tp / 100) * position_size
+
+    # --- Risk / Reward Ratio ---
+    # How much you gain vs how much you risk
+    # Example: risk $100, reward $300 → RR = 3.0
+    rr_ratio    = reward_amount / risk_amount
+
+    # --- Other Metrics ---
+
+    # Ratio of position size to account balance
     exposure_ratio = position_size / balance
 
     # Estimated liquidation price
-    # Long:  liquidated when price falls (100 / leverage)% from entry
-    # Short: liquidated when price rises (100 / leverage)% from entry
     liq_drop  = 100 / leverage
     liq_price = (
         entry_price * (1 - liq_drop / 100) if is_long
@@ -144,19 +148,27 @@ if st.button("🔍 Calculate Risk", use_container_width=True):
     direction_label = "Long 📈" if is_long else "Short 📉"
     st.subheader(f"② Risk Analysis — {direction_label}")
 
-    # Row 1: Core risk metrics
+    # Row 1: Risk metrics
     c1, c2, c3 = st.columns(3)
-    c1.metric("Risk Amount",          f"${risk_amount:,.2f}")
-    c2.metric("Risk % of Balance",    f"{risk_pct:.2f}%")
-    c3.metric("Exposure Ratio",       f"{exposure_ratio:.2f}x")
+    c1.metric("Risk Amount",         f"${risk_amount:,.2f}")
+    c2.metric("Risk % of Balance",   f"{risk_pct:.2f}%")
+    c3.metric("Exposure Ratio",      f"{exposure_ratio:.2f}x")
 
     st.write("")
 
-    # Row 2: Price metrics
+    # Row 2: Reward + RR + Liquidation
+    r1, r2, r3 = st.columns(3)
+    r1.metric("Potential Reward",    f"${reward_amount:,.2f}")
+    r2.metric("Risk / Reward Ratio", f"1 : {rr_ratio:.2f}")
+    r3.metric("Est. Liquidation",    f"${liq_price:,.2f}")
+
+    st.write("")
+
+    # Row 3: Price distances
     p1, p2, p3 = st.columns(3)
-    p1.metric("Price to Stop Loss",   f"${price_diff:,.4f}")
-    p2.metric("% Move to Stop Loss",  f"{pct_to_sl:.2f}%")
-    p3.metric("Est. Liquidation",     f"${liq_price:,.2f}")
+    p1.metric("% Move to Stop Loss",    f"{pct_to_sl:.2f}%")
+    p2.metric("% Move to Take Profit",  f"{pct_to_tp:.2f}%")
+    p3.metric("Leverage Used",          f"{int(leverage)}x")
 
     st.divider()
 
@@ -189,7 +201,6 @@ if st.button("🔍 Calculate Risk", use_container_width=True):
         f"{'Long' if is_long else 'Short'} position?"
     )
 
-    # Build table rows — hide index by using st.dataframe with hide_index
     rows = []
     for pct in [1, 2, 3]:
 
@@ -209,8 +220,7 @@ if st.button("🔍 Calculate Risk", use_container_width=True):
             "Remaining Balance" : f"${new_balance:,.2f}"
         })
 
-    # Use dataframe with hide_index=True to remove the 0,1,2 index column
-    import pandas as pd
+    # hide_index removes the 0, 1, 2 row numbers
     st.dataframe(
         pd.DataFrame(rows),
         hide_index=True,
